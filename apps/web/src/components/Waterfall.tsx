@@ -12,8 +12,11 @@ const PHASES = [
   { id: "purchase", label: "購入", color: "var(--series-3)" },
 ] as const;
 const OTHER = { id: "other", label: "その他", color: "var(--series-other)" };
+/** 時刻合わせは購入の脇役なので、カテゴリ色ではなくグレーにする */
+const CLOCK = { id: "clock", label: "時刻合わせ", color: "var(--series-other)" };
 
 function phaseOf(phase: string) {
+  if (phase === "clock") return CLOCK;
   return PHASES.find((p) => p.id === phase) ?? OTHER;
 }
 

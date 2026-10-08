@@ -51,7 +51,27 @@ scheduler（1 秒ごと）
 ```
 
 - 売り切れ・CAPTCHA・待機列・購入上限は再試行しない。人の対応が必要なものは `needs_human` にする
-- ワーカーのモジュール構成は `crates/striker/src/` の各ファイル先頭のコメントを参照
+### ワーカーのモジュール
+
+| ファイル | 役割 |
+|---|---|
+| `main.rs` | 起動。設定の読み込み・マイグレーションの確認・途中で止まった予約の復旧 |
+| `config.rs` | 環境変数（`DATABASE_URL`・`STRIKER_POLL_INTERVAL_MS`・`STRIKER_LEAD_MS`） |
+| `scheduler.rs` | ポーリングと、予約ごとのタスクの起動。Ctrl+C で実行中の購入を待って止まる |
+| `executor.rs` | 予約 1 件の購入処理と結果の保存 |
+| `db.rs` | 予約の取得（条件付き更新）・状態の更新・結果と計測値の保存 |
+| `clock.rs` | 現在時刻・サーバー時刻とのずれの推定・目標時刻までの待機 |
+| `http.rs` | `TimedClient`。リクエストを計測し、計測値をメモリに溜める |
+| `retry.rs` | `RetryPolicy`。回数と間隔に上限のある再試行 |
+| `site.rs` | `TicketSite` trait と `SiteError`・`SiteContext` |
+| `sites/` | 登録済みのアダプタ（今はモックのみ） |
+
+### 骨格の段階で残っていること（#4）
+
+- ログイン情報の復号（`SiteContext.credentials` は今は常に None。[ADR 0008](adr/0008-credential-encryption.md)）
+- 時刻合わせの精度。`Date` ヘッダーは秒単位なので誤差が最大 ±500ms ある
+- `needs_human` になったときの通知（#11）
+- 起動時の復旧は実装済み。前回途中で止まって `preparing` / `running` のまま残った自動購入の予約を `failed` にする
 
 ## 予約の状態
 

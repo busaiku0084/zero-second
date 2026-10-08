@@ -10,8 +10,9 @@ dev-web:
 dev-api:
 	pnpm dev:api
 
+# リポジトリ直下の .env を読み込んでから起動する
 dev-striker:
-	cargo run -p striker
+	set -a; [ -f .env ] && . ./.env; set +a; cargo run -p striker
 
 # lint + format（TS: Biome / Rust: rustfmt + clippy）
 check:

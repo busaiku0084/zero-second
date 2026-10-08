@@ -2,11 +2,30 @@
 
 use serde::Serialize;
 
+/// どの段階のリクエストか（timings.phase）
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Phase {
+    Login,
+    Prepare,
+    Clock,
+    Purchase,
+}
+
+impl Phase {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Login => "login",
+            Self::Prepare => "prepare",
+            Self::Clock => "clock",
+            Self::Purchase => "purchase",
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct RequestTiming {
-    pub run_id: i64,
-    /// 何の処理か（login / prepare / purchase など）
-    pub phase: String,
+    pub phase: Phase,
     pub method: String,
     pub url: String,
     pub status: Option<u16>,

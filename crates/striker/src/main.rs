@@ -1,22 +1,51 @@
-// 骨格段階のため未使用の型がある。#4 でワーカーの処理が入ったら外す。
-#![allow(dead_code)]
+//! striker: 自動購入に対応したサイトの予約を、販売開始時刻に購入するワーカー。
+//!
+//! - config.rs    環境変数からの設定
+//! - db.rs        予約の取得・結果の保存（SQLite を API と共有）
+//! - scheduler.rs 予約のポーリングとタスクの起動
+//! - executor.rs  予約 1 件の購入処理
+//! - clock.rs     時刻合わせと待機
+//! - http.rs      計測つきの HTTP クライアント
+//! - retry.rs     上限つきの再試行
+//! - site.rs      サイトのアダプタが実装する trait
+//! - sites/       登録済みのアダプタ（利用規約で自動化が許されたサイトのみ）
 
 mod clock;
+mod config;
+mod db;
+mod executor;
+mod http;
 mod metrics;
 mod model;
+mod retry;
+mod scheduler;
 mod site;
 mod sites;
 
+use std::sync::Arc;
+
 use tracing_subscriber::EnvFilter;
+
+use crate::config::Config;
+use crate::db::Db;
+use crate::scheduler::Scheduler;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt()
-        .with_env_filter(EnvFilter::from_default_env())
+        .with_env_filter(
+            EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("striker=info")),
+        )
         .init();
 
-    tracing::info!("striker started");
+    let config = Config::from_env()?;
+    let db = Db::open(&config.database_path)?;
+    db.ensure_migrated()?;
+    let recovered = db.recover_stale()?;
+    if recovered > 0 {
+        tracing::warn!(recovered, "前回途中で止まった予約を失敗にしました");
+    }
 
-    // TODO(#4): DB から実行待ちの予約を取り出し、時刻同期 → prepare → purchase を実行する
-    Ok(())
+    tracing::info!(database = %config.database_path.display(), "striker started");
+    Scheduler::new(Arc::new(db), config).run().await
 }

@@ -31,11 +31,14 @@ zero-second/
 ├── crates/
 │   └── striker/          # Rust 購入ワーカー
 │       └── src/
-│           ├── site.rs   # trait TicketSite（login / prepare / purchase）
-│           ├── sites/    # サイトアダプタ（mock のみ）
-│           ├── clock.rs  # サーバー時刻とのずれの推定
-│           ├── metrics.rs# リクエスト単位の計測値
-│           └── model.rs  # 予約・購入結果のモデル
+│           ├── scheduler.rs # 予約のポーリング
+│           ├── executor.rs  # 予約 1 件の購入処理
+│           ├── site.rs      # trait TicketSite（login / prepare / purchase）
+│           ├── sites/       # サイトアダプタ（mock のみ）
+│           ├── clock.rs     # 時刻合わせと待機
+│           ├── http.rs      # 計測つき HTTP クライアント（TimedClient）
+│           ├── retry.rs     # 上限つき再試行（RetryPolicy）
+│           └── db.rs        # 予約の取得・結果の保存
 ├── db/migrations/        # SQLite のスキーマ（TS・Rust 共通）
 └── docs/                 # 設計メモ・サイト別の調査結果
 ```
