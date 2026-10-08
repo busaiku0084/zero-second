@@ -1,0 +1,39 @@
+# deps / build
+node_modules/
+.next/
+out/
+dist/
+target/
+*.tsbuildinfo
+next-env.d.ts
+
+# env / secrets
+.env
+.env.*
+!.env.example
+
+# local data
+*.sqlite
+*.sqlite3
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+data/
+
+# ブラウザの通信記録（Cookie・トークンを含む）
+*.har
+
+# logs
+*.log
+logs/
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# Claude Code（個人設定はコミットしない）
+.claude/settings.local.json
+CLAUDE.local.md

@@ -1,0 +1,24 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(make check)",
+      "Bash(make check-fix)",
+      "Bash(make type-check)",
+      "Bash(make test)",
+      "Bash(pnpm check)",
+      "Bash(pnpm check:fix)",
+      "Bash(pnpm type-check)",
+      "Bash(pnpm test)",
+      "Bash(pnpm install)",
+      "Bash(cargo fmt:*)",
+      "Bash(cargo clippy:*)",
+      "Bash(cargo test:*)",
+      "Bash(cargo check:*)",
+      "Bash(cargo build:*)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)"
+    ],
+    "deny": ["Read(./.env)", "Read(./.env.*)", "Read(./**/*.har)", "Read(./data/**)"]
+  }
+}
