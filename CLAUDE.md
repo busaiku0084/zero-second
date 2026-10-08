@@ -16,7 +16,8 @@ Web で予約を登録し、販売開始時刻に Rust のワーカー（striker
 - 再試行には回数と間隔の上限を設け、サイトに過剰なリクエストを送らない
 - ログイン情報・Cookie・トークン・HAR ファイルはコミットしない。ログやテストのフィクスチャにも実値を残さない
 
-サイトごとの対応状況は `docs/sites/README.md` にまとめる。
+サイトごとの対応状況は `docs/sites/README.md` にまとめ、`packages/shared/src/sites.ts` の `automation` と一致させる。
+`automation: "manual"` のサイトでは自動購入（`mode: "auto"`）を選べないようにしている。この制限は外さない。
 
 ## アーキテクチャ
 
@@ -24,7 +25,9 @@ Web で予約を登録し、販売開始時刻に Rust のワーカー（striker
 zero-second/
 ├── apps/
 │   ├── web/              # Next.js（App Router）予約登録・ダッシュボード
-│   └── api/              # Hono 予約・アカウント・実行結果の API
+│   └── api/              # Hono 予約・アカウント・実行結果の API（node:sqlite）
+├── packages/
+│   └── shared/           # web・api 共通のスキーマ（zod）・型・サイト一覧
 ├── crates/
 │   └── striker/          # Rust 購入ワーカー
 │       └── src/
@@ -40,6 +43,8 @@ zero-second/
 - web と api は TS、購入の実行部分だけ Rust
 - api と striker は SQLite を共有し、予約の受け渡しは `reservations.status` で行う（キュー用ミドルウェアは使わない）
 - 時刻はすべて UNIX ミリ秒の INTEGER で保存する
+- マイグレーションは api の起動時に自動で適用される（`schema_migrations` で管理）
+- アカウントのパスワードは AES-256-GCM で暗号化して保存し、API のレスポンスには含めない
 
 ## 速さについての方針
 

@@ -10,7 +10,10 @@
   },
   "dependencies": {
     "@hono/node-server": "^2.1.4",
-    "hono": "^4.13.13"
+    "@hono/zod-validator": "^0.9.1",
+    "@zero-second/shared": "workspace:*",
+    "hono": "^4.13.13",
+    "zod": "^4.6.5"
   },
   "devDependencies": {
     "tsx": "^4.23.15",
