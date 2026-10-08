@@ -40,5 +40,7 @@ DB は 1 ファイルなので、API とワーカーを止めてから `data/` �
 |---|---|
 | Web に「API に接続できません」と出る | `make dev-api` が動いているか、`API_URL` が正しいかを確認する |
 | API の起動時に `CREDENTIALS_ENCRYPTION_KEY` のエラー | `.env` に 32 バイトの base64 を設定する |
-| 予約が `preparing` / `running` のまま | ワーカーが途中で止まった可能性がある。ワーカーのログを確認する（自動復旧は #4 で対応予定） |
+| 予約が `preparing` / `running` のまま | ワーカーが途中で止まった可能性がある。ワーカーを起動し直すと `failed` に戻る。原因はワーカーのログで確認する |
+| ワーカーの起動時に「マイグレーションが未適用です」 | 先に `make dev-api` で API を起動する（マイグレーションは API が適用する） |
+| 予約が「自動購入に対応していないサイトです」で失敗する | ワーカーにアダプタが登録されていないサイト。規約で自動化が禁止されたサイトは対応しない（ADR 0005） |
 | `ExperimentalWarning: SQLite is an experimental feature` | `node:sqlite` の仕様上の警告で、動作に問題はない（[ADR 0006](adr/0006-node-sqlite.md)） |
