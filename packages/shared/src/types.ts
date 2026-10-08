@@ -1,5 +1,5 @@
-import type { PaymentMethod, ReservationMode, ReservationStatus, RunResult } from "./schemas.js";
-import type { SiteId } from "./sites.js";
+import type { PaymentMethod, ReservationMode, ReservationStatus, RunResult } from "./schemas";
+import type { SiteId } from "./sites";
 
 /** API のレスポンス型。ログイン情報は返さない。 */
 export type Account = {

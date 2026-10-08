@@ -7,6 +7,13 @@ import { migrate, openDb } from "./lib/db.js";
 
 const ROOT = resolve(import.meta.dirname, "../../..");
 
+// リポジトリ直下の .env を読む（無ければ環境変数のみ）
+try {
+  process.loadEnvFile(resolve(ROOT, ".env"));
+} catch {
+  // .env が無い場合はそのまま進める
+}
+
 /** DATABASE_URL（file:./data/xxx.sqlite）をリポジトリ直下からの絶対パスにする */
 function databasePath(url = "file:./data/zero-second.sqlite"): string {
   return resolve(ROOT, url.replace(/^file:/, ""));

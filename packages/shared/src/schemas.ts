@@ -1,5 +1,8 @@
 import { z } from "zod";
-import { findSite, SITE_IDS } from "./sites.js";
+import { findSite, SITE_IDS } from "./sites";
+
+// バリデーションのメッセージを日本語にする（web・api 共通）
+z.config(z.locales.ja());
 
 export const PAYMENT_METHODS = ["convenience_store"] as const;
 export const RESERVATION_MODES = ["manual", "auto"] as const;

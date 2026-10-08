@@ -79,6 +79,13 @@ make test         # Vitest + cargo test
 - `any` は使わない。外部からの入力は境界でバリデーションする
 - API のルートを追加したら `app.request()` を使った Vitest テストを付ける
 
+### Web（Next.js）
+- 色・書体・余白は `apps/web/src/app/globals.css` のトークンだけを使う。コンポーネントに色を直書きしない（ライト・ダーク両方を `:root` / `prefers-color-scheme` / `data-theme` で定義している）
+- グラフは dataviz の検証済みパレット（`--series-1..3`）と仕様に従う：線 2px、二重軸は使わない、凡例か直接ラベル、表ビューへの切り替え、ホバーとキーボードの両方で値を読めること
+- 状態（購入済み・売り切れなど）は色だけで伝えず、アイコン + ラベルを付ける（`StatusPill` / `ResultPill`）
+- 日時の入力と表示は日本時間。変換は `lib/format.ts` の関数を使う
+- API はサーバー側からだけ呼ぶ（`lib/api.ts`）。更新系は Server Actions（`app/actions.ts`）で、入力は `@zero-second/shared` の zod スキーマで検証する
+
 ### Rust
 - `cargo clippy -- -D warnings` が通る状態を保つ
 - エラーはサイト層では `SiteError`、それ以外は `anyhow::Result`
