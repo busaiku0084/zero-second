@@ -20,4 +20,4 @@ make dev-web   # http://localhost:3000
 
 予約を登録すると、ダッシュボードで販売開始までカウントダウンします。手で購入したら、予約の詳細画面で「今を購入完了として記録」を押すと、販売開始からの所要時間がミリ秒まで残ります。
 
-開発の決まりごとは [CLAUDE.md](./CLAUDE.md)、構成は [docs/architecture.md](./docs/architecture.md)、サイトごとの対応状況は [docs/sites/README.md](./docs/sites/README.md) を参照。
+ドキュメントの一覧は [docs/README.md](./docs/README.md)。開発の決まりごとは [CLAUDE.md](./CLAUDE.md) と [docs/development/](./docs/development/)、設計判断は [docs/adr/](./docs/adr/README.md) を参照。

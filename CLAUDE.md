@@ -46,6 +46,16 @@ zero-second/
 - マイグレーションは api の起動時に自動で適用される（`schema_migrations` で管理）
 - アカウントのパスワードは AES-256-GCM で暗号化して保存し、API のレスポンスには含めない
 
+## ドキュメント
+
+詳細は `docs/` にある。作業の前に関係するものを読み、コードを変えたら同じ PR で直す。
+
+- `docs/development/coding-guidelines.md` — コーディングルールの詳細（このファイルは要点のみ）
+- `docs/development/workflow.md` — issue・ブランチ・コミット・PR・CI の進め方
+- `docs/adr/` — 設計判断の記録。判断を伴う変更をしたら `new-adr` スキルで ADR を追加する
+- `docs/architecture.md`・`docs/api.md`・`docs/database.md`・`docs/operations.md`
+- `docs/sites/README.md` — サイトごとの利用規約の確認結果
+
 ## 速さについての方針
 
 速さを決めるのは言語よりネットワーク。次を優先する。
