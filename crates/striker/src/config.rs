@@ -36,7 +36,7 @@ impl Config {
             sites: SitesConfig {
                 mock_url: get("MOCK_SITE_URL")
                     .filter(|v| !v.trim().is_empty())
-                    .unwrap_or_else(|| "http://127.0.0.1:8788".into()),
+                    .unwrap_or_else(|| "http://127.0.0.1:47302".into()),
             },
         })
     }

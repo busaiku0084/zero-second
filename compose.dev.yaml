@@ -1,0 +1,55 @@
+# ローカル開発用。compose.yaml に重ねて使う（`make docker-dev`）。ソースをマウントしてホットリロードする
+#
+# - node_modules・.next・Rust の target はコンテナ側のボリュームに置き、ホスト（macOS）のものと混ぜない
+# - DB は本番相当（data）とは別のボリューム（dev-data）を使う
+# - ポートは compose.yaml と同じ（127.0.0.1 の 47300 / 47302）。ホストで make dev を動かしているときは止めてから使う
+
+x-node-dev: &node-dev
+  image: zero-second-node-dev:local
+  build:
+    context: .
+    dockerfile: docker/node.Dockerfile
+    target: deps
+  restart: "no"
+  volumes: &node-volumes
+    - .:/app
+    - /app/node_modules
+    - /app/apps/web/node_modules
+    - /app/apps/web/.next
+    - /app/apps/api/node_modules
+    - /app/apps/mock-site/node_modules
+    - /app/packages/shared/node_modules
+    - dev-data:/data
+
+services:
+  api:
+    <<: *node-dev
+    command: ["node_modules/.bin/tsx", "watch", "src/index.ts"]
+
+  web:
+    <<: *node-dev
+    command: ["node_modules/.bin/next", "dev", "--port", "47300", "--hostname", "0.0.0.0"]
+
+  mock-site:
+    <<: *node-dev
+    command: ["node_modules/.bin/tsx", "watch", "src/index.ts"]
+
+  striker:
+    image: rust:1-slim-bookworm
+    build: !reset null
+    working_dir: /app
+    restart: "no"
+    # rust-toolchain.toml（stable）ではなくイメージの toolchain を使う（毎回のダウンロードを避ける）
+    command: ["sh", "-c", "RUSTUP_TOOLCHAIN=$$RUST_VERSION exec cargo run -p striker"]
+    environment:
+      CARGO_TARGET_DIR: /cargo-target
+    volumes:
+      - .:/app
+      - cargo-registry:/usr/local/cargo/registry
+      - cargo-target:/cargo-target
+      - dev-data:/data
+
+volumes:
+  dev-data:
+  cargo-registry:
+  cargo-target:

@@ -24,7 +24,7 @@ describe("reservationCreateSchema", () => {
       reservationCreateSchema.safeParse({
         ...base,
         site: "mock",
-        eventUrl: "http://127.0.0.1:8788/events/ok",
+        eventUrl: "http://127.0.0.1:47302/events/ok",
         mode: "auto",
       }).success,
     ).toBe(true);

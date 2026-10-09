@@ -1,0 +1,13 @@
+# ビルドに不要なものと、イメージに入れてはいけないもの（ログイン情報・DB・HAR）
+**/node_modules
+**/.next
+target
+data
+.env
+.env.*
+!.env.example
+*.har
+*.sqlite*
+.git
+.github
+.claude/settings.local.json

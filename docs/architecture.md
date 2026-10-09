@@ -29,7 +29,8 @@
 
 ```bash
 make setup   # 初回のみ（.env も作る）
-make dev     # web（:3000）・api（:8787）・mock-site（:8788）・striker をまとめて起動
+make dev     # web（:47300）・api（:47301）・mock-site（:47302）・striker をまとめて起動
+# Docker なら make docker-up（本番相当）か make docker-dev（ホットリロード）
 ```
 
 1. 予約の登録で「モックサイト（検証用）」を選び、シナリオを選ぶ（公演名と URL が埋まる）

@@ -1,6 +1,6 @@
 # API リファレンス
 
-`apps/api`（Hono）。既定で `http://127.0.0.1:8787` で待ち受ける（localhost のみ）。
+`apps/api`（Hono）。既定で `http://127.0.0.1:47301` で待ち受ける（localhost のみ）。
 
 - リクエスト・レスポンスは JSON。時刻は UNIX ミリ秒（[ADR 0007](adr/0007-time-representation.md)）
 - `API_TOKEN` を設定すると、`/health` 以外に `Authorization: Bearer <token>` が必要になる

@@ -31,9 +31,10 @@ const app = createApp({
   apiToken: process.env.API_TOKEN || undefined,
 });
 
-const port = Number(process.env.API_PORT ?? 8787);
+const port = Number(process.env.API_PORT || 47301);
+// 既定は localhost のみ。Docker の中では 0.0.0.0 にする（ホストへは公開しない。ADR 0015）
+const hostname = process.env.API_HOST || "127.0.0.1";
 
-// ローカル利用前提のため、localhost でのみ待ち受ける
-serve({ fetch: app.fetch, port, hostname: "127.0.0.1" }, (info) => {
-  console.info(`api listening on http://localhost:${info.port}`);
+serve({ fetch: app.fetch, port, hostname }, (info) => {
+  console.info(`api listening on http://${hostname}:${info.port}`);
 });

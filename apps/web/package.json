@@ -3,9 +3,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "next dev --port 3000",
+    "dev": "next dev --port 47300 --hostname 127.0.0.1",
     "build": "next build",
-    "start": "next start --port 3000",
+    "start": "next start --port 47300 --hostname 127.0.0.1",
     "type-check": "next typegen && tsc --noEmit",
     "test": "vitest run --passWithNoTests"
   },

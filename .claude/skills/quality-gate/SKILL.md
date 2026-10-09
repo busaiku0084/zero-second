@@ -44,6 +44,8 @@ make test
 | 8 | issue 番号のない TODO | FAIL |
 | 9 | 設計の判断（依存の追加・スキーマ変更・外部とのやり取り・守るラインの変更）があるのに ADR がない | FAIL（`new-adr` スキルで追加） |
 | 10 | コードの変更と `docs/`（api.md・database.md・architecture.md・operations.md）が食い違っている | FAIL |
+| 11 | 47300〜47302 以外のポート、`127.0.0.1:` の付かない `ports:`、`container_name`・固定サブネット（本職の開発と競合させない。ADR 0015） | FAIL |
+| 12 | `packages/shared/src/sites.json` の `automation: "auto"` が `docs/sites/README.md` の判断と食い違っている | **[CRITICAL] FAIL** |
 
 機械的に判定しきれないもの（2・3 など）は該当箇所を読んで判断する。
 

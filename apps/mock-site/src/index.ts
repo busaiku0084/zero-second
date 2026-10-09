@@ -14,9 +14,10 @@ const app = createMockSite({
   clockSkewMs: Number(process.env.MOCK_SITE_CLOCK_SKEW_MS || 0),
 });
 
-const port = Number(process.env.MOCK_SITE_PORT || 8788);
+const port = Number(process.env.MOCK_SITE_PORT || 47302);
+// 既定は localhost のみ。Docker の中では 0.0.0.0 にする（ホスト側は 127.0.0.1 にだけ公開する。ADR 0015）
+const hostname = process.env.MOCK_SITE_HOST || "127.0.0.1";
 
-// 検証用のため、localhost でのみ待ち受ける
-serve({ fetch: app.fetch, port, hostname: "127.0.0.1" }, (info) => {
-  console.info(`mock site listening on http://127.0.0.1:${info.port}`);
+serve({ fetch: app.fetch, port, hostname }, (info) => {
+  console.info(`mock site listening on http://${hostname}:${info.port}`);
 });

@@ -1,6 +1,6 @@
 //! 検証用のモックサイト（apps/mock-site）で購入するアダプタ（ADR 0012）。
 //!
-//! 送り先は設定の `MOCK_SITE_URL` だけ。予約の公演 URL（`http://127.0.0.1:8788/events/{シナリオ}`）からは
+//! 送り先は設定の `MOCK_SITE_URL` だけ。予約の公演 URL（`http://127.0.0.1:47302/events/{シナリオ}`）からは
 //! シナリオだけを読み、ホストは使わない。誤って外部のサイトへ送らないよう、`MOCK_SITE_URL` は
 //! ループバックか、ドットを含まないホスト名（Docker のサービス名）に限る。
 
@@ -15,7 +15,7 @@ use crate::model::{PurchaseOutcome, Reservation};
 use crate::site::{SiteContext, SiteError, TicketSite};
 
 pub struct MockSite {
-    /// `http://127.0.0.1:8788` / Docker では `http://mock-site:...`（末尾の / なし）
+    /// `http://127.0.0.1:47302` / Docker では `http://mock-site:...`（末尾の / なし）
     origin: String,
 }
 
