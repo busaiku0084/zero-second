@@ -30,6 +30,7 @@ use tracing_subscriber::EnvFilter;
 use crate::config::Config;
 use crate::db::Db;
 use crate::scheduler::Scheduler;
+use crate::sites::SiteRegistry;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -47,7 +48,9 @@ async fn main() -> anyhow::Result<()> {
     }
 
     tracing::info!(database = %config.database_path.display(), "striker started");
-    Scheduler::new(Arc::new(db), config).run().await
+    let sites = SiteRegistry::from_config(&config.sites)?;
+    tracing::info!(sites = ?sites.ids().collect::<Vec<_>>(), "登録済みのサイト");
+    Scheduler::new(Arc::new(db), config, sites).run().await
 }
 
 /// make dev で API と同時に起動したとき、API がマイグレーションを当て終わるまで待つ

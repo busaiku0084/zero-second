@@ -1,42 +1,44 @@
+import { z } from "zod";
+import siteData from "./sites.json" with { type: "json" };
+
 /**
- * 対応サイトの一覧。
+ * 対応サイトの一覧。定義は sites.json にあり、striker（Rust）のテストも同じファイルを読む。
  *
- * automation は利用規約の確認結果（docs/sites/README.md）と必ず一致させる。
- * 自動購入を規約で禁止しているサイトは "manual"（購入補助のみ）にする。
+ * - automation は利用規約の確認結果（docs/sites/README.md）と必ず一致させる。
+ *   自動購入を規約で禁止しているサイトは "manual"（購入補助のみ）にする
+ * - "auto" のサイトには striker のアダプタが必要（無いと Rust のテストが落ちる）
+ * - 追加の手順は docs/development/adding-a-site.md
  */
-export const SITES = [
-  {
-    id: "ticketdive",
-    name: "TicketDive",
-    url: "https://ticketdive.com/",
-    automation: "manual",
-  },
-  {
-    id: "livepocket",
-    name: "LivePocket",
-    url: "https://livepocket.jp/",
-    automation: "manual",
-  },
-  {
-    id: "mock",
-    name: "モックサイト（検証用）",
-    url: "http://127.0.0.1:8788/",
-    automation: "auto",
-  },
-] as const satisfies readonly Site[];
-
-export type Site = {
-  id: string;
-  name: string;
-  url: string;
+const siteSchema = z.object({
+  /** 識別子。DB の site 列・striker のアダプタの id と一致させる */
+  id: z.string().regex(/^[a-z0-9-]+$/),
+  name: z.string().min(1),
+  /** トップページ。フォームの例示に使う */
+  url: z.url(),
+  /** 公演 URL として受け付けるホスト。サブドメインも含む */
+  hosts: z.array(z.string().min(1)).min(1),
   /** manual: 購入補助のみ / auto: striker による自動購入に対応 */
-  automation: "manual" | "auto";
-};
+  automation: z.enum(["manual", "auto"]),
+});
 
-export type SiteId = (typeof SITES)[number]["id"];
+export type Site = z.infer<typeof siteSchema>;
+export type SiteId = Site["id"];
+
+export const SITES: readonly Site[] = z.array(siteSchema).parse(siteData);
 
 export const SITE_IDS = SITES.map((s) => s.id) as [SiteId, ...SiteId[]];
 
 export function findSite(id: string): Site | undefined {
   return SITES.find((s) => s.id === id);
+}
+
+/** 公演 URL のホストが、サイトのホスト（またはそのサブドメイン）か */
+export function eventUrlMatchesSite(site: Site, eventUrl: string): boolean {
+  let host: string;
+  try {
+    host = new URL(eventUrl).hostname.toLowerCase();
+  } catch {
+    return false;
+  }
+  return site.hosts.some((h) => host === h || host.endsWith(`.${h}`));
 }

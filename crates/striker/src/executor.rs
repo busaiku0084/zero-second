@@ -134,7 +134,10 @@ mod tests {
         let id = insert_reservation(&db, "mock", "auto", now_ms() + 20);
         let reservation = db.due_reservations(now_ms(), 60_000).unwrap().remove(0);
         assert!(db.claim(id).unwrap());
-        let site = FakeSite { behavior };
+        let site = FakeSite {
+            behavior,
+            ..FakeSite::default()
+        };
         let result = execute(&db, &site, reservation, &fast_policy())
             .await
             .unwrap();

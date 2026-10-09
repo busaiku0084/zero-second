@@ -7,6 +7,7 @@ use thiserror::Error;
 
 use crate::http::TimedClient;
 use crate::model::{PurchaseOutcome, Reservation};
+use crate::retry::RetryPolicy;
 
 #[derive(Debug, Error)]
 pub enum SiteError {
@@ -46,8 +47,13 @@ pub struct SiteContext {
 
 #[async_trait]
 pub trait TicketSite: Send + Sync {
-    /// サイト識別子（packages/shared/src/sites.ts の id と一致させる）
+    /// サイト識別子（packages/shared/src/sites.json の id と一致させる）
     fn id(&self) -> &'static str;
+
+    /// 購入の再試行の上限。サイトの負荷や規約に合わせて、既定より厳しくしてよい（緩める場合は理由を残す）
+    fn retry_policy(&self) -> RetryPolicy {
+        RetryPolicy::default()
+    }
 
     /// サーバー時刻を測るための URL（Date ヘッダーを返すもの）。None なら端末の時計を使う
     fn clock_probe_url(&self, _reservation: &Reservation) -> Option<String> {

@@ -1,5 +1,7 @@
 import { zValidator } from "@hono/zod-validator";
 import {
+  EVENT_URL_MESSAGE,
+  eventUrlMatchesSite,
   findSite,
   manualRunCreateSchema,
   type ReservationStatus,
@@ -98,7 +100,11 @@ export const reservations = new Hono<AppEnv>()
       if (LOCKED_STATUSES.includes(current.status)) {
         return c.json({ error: "実行中の予約は変更できません" }, 409);
       }
-      if (body.mode === "auto" && findSite(current.site)?.automation !== "auto") {
+      const site = findSite(current.site);
+      if (body.eventUrl !== undefined && site && !eventUrlMatchesSite(site, body.eventUrl)) {
+        return c.json({ error: EVENT_URL_MESSAGE }, 400);
+      }
+      if (body.mode === "auto" && site?.automation !== "auto") {
         return c.json({ error: "このサイトは利用規約により自動購入に対応していません" }, 400);
       }
       if (
