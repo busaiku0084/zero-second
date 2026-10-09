@@ -20,7 +20,7 @@ export const SITES = [
   {
     id: "mock",
     name: "モックサイト（検証用）",
-    url: "http://localhost/",
+    url: "http://127.0.0.1:8788/",
     automation: "auto",
   },
 ] as const satisfies readonly Site[];

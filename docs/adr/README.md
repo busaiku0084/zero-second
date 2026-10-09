@@ -33,3 +33,5 @@
 | [0009](0009-server-side-data-access.md) | Web から API へのアクセスはサーバー側だけにする | 採用 |
 | [0010](0010-handmade-svg-charts.md) | グラフはライブラリを使わず SVG で描く | 採用 |
 | [0011](0011-worker-polling-and-timing-buffer.md) | ワーカーはポーリングで予約を取り、計測値はまとめて書く | 採用 |
+| [0012](0012-mock-site-as-local-http-server.md) | 検証用のモックサイトをローカルの HTTP サーバーとして用意する | 採用 |
+| [0013](0013-clock-sync-bisection-and-server-time-elapsed.md) | 時刻合わせは秒の切り替わりを二分探索し、所要時間はサーバーの時計で測る | 採用 |

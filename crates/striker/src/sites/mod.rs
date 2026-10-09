@@ -8,11 +8,13 @@ use std::sync::Arc;
 
 use crate::site::TicketSite;
 
+#[cfg(test)]
+pub mod fake;
 pub mod mock;
 
 pub fn find(site_id: &str) -> Option<Arc<dyn TicketSite>> {
     match site_id {
-        "mock" => Some(Arc::new(mock::MockSite::default())),
+        "mock" => Some(Arc::new(mock::MockSite)),
         _ => None,
     }
 }

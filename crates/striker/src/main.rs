@@ -23,6 +23,7 @@ mod site;
 mod sites;
 
 use std::sync::Arc;
+use std::time::Duration;
 
 use tracing_subscriber::EnvFilter;
 
@@ -39,8 +40,7 @@ async fn main() -> anyhow::Result<()> {
         .init();
 
     let config = Config::from_env()?;
-    let db = Db::open(&config.database_path)?;
-    db.ensure_migrated()?;
+    let db = wait_for_db(&config).await?;
     let recovered = db.recover_stale()?;
     if recovered > 0 {
         tracing::warn!(recovered, "前回途中で止まった予約を失敗にしました");
@@ -48,4 +48,25 @@ async fn main() -> anyhow::Result<()> {
 
     tracing::info!(database = %config.database_path.display(), "striker started");
     Scheduler::new(Arc::new(db), config).run().await
+}
+
+/// make dev で API と同時に起動したとき、API がマイグレーションを当て終わるまで待つ
+async fn wait_for_db(config: &Config) -> anyhow::Result<Db> {
+    const ATTEMPTS: u32 = 30;
+    let mut attempt = 1;
+    loop {
+        let result =
+            Db::open(&config.database_path).and_then(|db| db.ensure_migrated().map(|_| db));
+        match result {
+            Ok(db) => return Ok(db),
+            Err(e) if attempt < ATTEMPTS => {
+                if attempt == 1 {
+                    tracing::info!(error = %format!("{e:#}"), "API がマイグレーションを当てるのを待っています");
+                }
+                tokio::time::sleep(Duration::from_secs(1)).await;
+                attempt += 1;
+            }
+            Err(e) => return Err(e),
+        }
+    }
 }

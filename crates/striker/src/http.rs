@@ -23,6 +23,8 @@ impl TimedClient {
             .pool_idle_timeout(Duration::from_secs(300))
             .tcp_keepalive(Duration::from_secs(30))
             .tcp_nodelay(true)
+            // サイトのセッション（Cookie）は 1 回の実行の中だけで持つ
+            .cookie_store(true)
             .timeout(Duration::from_secs(30))
             .user_agent(concat!("zero-second-striker/", env!("CARGO_PKG_VERSION")))
             .build()?;

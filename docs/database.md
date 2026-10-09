@@ -41,7 +41,7 @@ SQLite（WAL モード）。API とワーカーが同じファイルを使う（
 | 列 | 内容 |
 |---|---|
 | `mode` | `manual` / `auto` |
-| `clock_offset_ms` | サーバー時刻 − 端末の時刻（ワーカーが測ったもの） |
+| `clock_offset_ms` | サーバー時刻 − 端末の時刻（ワーカーが測ったもの）。所要時間はこれを足してサーバーの時計にそろえる |
 | `started_at_ms` / `finished_at_ms` | 開始・完了 |
 | `result` | `succeeded` / `sold_out` / `failed` / `needs_human` |
 | `order_id` / `payment_reference` / `payment_due_at_ms` | 注文番号・払込番号・支払期限 |

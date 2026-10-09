@@ -801,6 +801,17 @@ fieldset {
   margin: 0;
 }
 
+.input-row {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+}
+
+.input-row > input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
 .choice-row {
   display: flex;
   gap: 8px;

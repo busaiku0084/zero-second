@@ -47,19 +47,36 @@ export function toReservation(r: Row): Reservation {
   };
 }
 
+/**
+ * 販売開始から購入完了までの所要時間。
+ *
+ * finished_at_ms は端末の時計、sale_starts_at_ms はサイト（サーバー）の時計なので、
+ * ワーカーが測ったずれ（サーバー − 端末）を足してサーバーの時計にそろえてから引く。
+ */
+export function elapsedMs(
+  finishedAtMs: number,
+  saleStartsAtMs: number,
+  clockOffsetMs: number | null,
+): number {
+  return finishedAtMs + (clockOffsetMs ?? 0) - saleStartsAtMs;
+}
+
 /** runs と reservations.sale_starts_at_ms を結合した行から変換する */
 export function toRun(r: Row): Run {
   const finishedAtMs = numOrNull(r.finished_at_ms);
   const saleStartsAtMs = numOrNull(r.sale_starts_at_ms);
+  const clockOffsetMs = numOrNull(r.clock_offset_ms);
   return {
     id: num(r.id),
     reservationId: num(r.reservation_id),
     mode: str(r.mode) as ReservationMode,
-    clockOffsetMs: numOrNull(r.clock_offset_ms),
+    clockOffsetMs,
     startedAtMs: num(r.started_at_ms),
     finishedAtMs,
     elapsedMs:
-      finishedAtMs !== null && saleStartsAtMs !== null ? finishedAtMs - saleStartsAtMs : null,
+      finishedAtMs !== null && saleStartsAtMs !== null
+        ? elapsedMs(finishedAtMs, saleStartsAtMs, clockOffsetMs)
+        : null,
     result: strOrNull(r.result) as RunResult | null,
     error: strOrNull(r.error),
     orderId: strOrNull(r.order_id),

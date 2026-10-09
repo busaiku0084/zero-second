@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { cancelReservation, deleteReservation } from "@/app/actions";
+import { AutoRefresh } from "@/components/AutoRefresh";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { Countdown } from "@/components/Countdown";
 import { ManualRunForm } from "@/components/ManualRunForm";
@@ -36,9 +37,12 @@ export default async function ReservationPage({ params }: PageProps<"/reservatio
   const r = await load(id);
   const site = findSite(r.site);
   const locked = r.status === "preparing" || r.status === "running";
+  // ワーカーが拾ってから結果を書くまでを追えるように、自動購入の待機・処理中は読み直す
+  const watching = r.mode === "auto" && (r.status === "pending" || locked);
 
   return (
     <>
+      {watching ? <AutoRefresh intervalMs={locked ? 1_000 : 5_000} /> : null}
       <div className="page-header">
         <div>
           <Link href="/reservations" className="muted" style={{ fontSize: "0.85rem" }}>
