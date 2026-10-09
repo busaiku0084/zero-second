@@ -20,6 +20,27 @@ export function findMockScenario(id: string): MockScenario | undefined {
   return MOCK_SCENARIOS.find((s) => s.id === id);
 }
 
+/** Sauce Demo（ローカルで動かしたもの。ADR 0021）。予約の公演 URL は商品ページ */
+export const SAUCE_DEMO_URL = "http://127.0.0.1:47303";
+
+export const SAUCE_DEMO_PRODUCTS = [
+  { id: 4, name: "Sauce Labs Backpack" },
+  { id: 0, name: "Sauce Labs Bike Light" },
+  { id: 1, name: "Sauce Labs Bolt T-Shirt" },
+] as const;
+
+/** Sauce Demo のテストユーザー（アカウントの登録で使う）。パスワードはどれも secret_sauce（Sauce Demo の画面に書かれている値） */
+export const SAUCE_DEMO_USERS = [
+  { loginId: "standard_user", description: "成功する" },
+  { loginId: "performance_glitch_user", description: "ログインに約 5 秒かかる（遅延）" },
+  { loginId: "locked_out_user", description: "ログインできない（失敗）" },
+  { loginId: "problem_user", description: "id が奇数の商品をカートに入れられない（失敗）" },
+] as const;
+
+export function sauceDemoProductUrl(id: number, base: string = SAUCE_DEMO_URL): string {
+  return `${base}/inventory-item.html?id=${id}`;
+}
+
 export function mockEventUrl(scenario: MockScenarioId, base: string = MOCK_SITE_URL): string {
   return `${base}/events/${scenario}`;
 }

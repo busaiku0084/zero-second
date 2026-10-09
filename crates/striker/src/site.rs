@@ -5,6 +5,7 @@
 use async_trait::async_trait;
 use thiserror::Error;
 
+use crate::browser::BrowserSession;
 use crate::http::TimedClient;
 use crate::model::{PurchaseOutcome, Reservation};
 use crate::retry::RetryPolicy;
@@ -36,12 +37,25 @@ impl std::fmt::Debug for Credentials {
     }
 }
 
+/// アダプタがサイトを操作する方法（ADR 0021）
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Driver {
+    /// サイトの API を HTTP で叩く（`ctx.http`）。速いので、使えるならこちら
+    Http,
+    /// ヘッドレス Chrome で画面を操作する（`ctx.browser`）。API が使えないサイト用
+    Browser,
+}
+
 /// 1 回の実行のあいだ、アダプタが使う状態
 pub struct SiteContext {
     pub reservation: Reservation,
     pub http: TimedClient,
+    /// `Driver::Browser` のアダプタのときだけ入る
+    pub browser: Option<BrowserSession>,
     /// 予約に指定したアカウントのログイン情報（復号済み）。アカウントを指定していなければ None
     pub credentials: Option<Credentials>,
+    /// prepare で読んでおき、purchase で使う値（販売開始の瞬間の処理を減らすため）
+    pub prepared: std::collections::HashMap<&'static str, String>,
 }
 
 #[async_trait]
@@ -52,6 +66,11 @@ pub trait TicketSite: Send + Sync {
     /// 購入の再試行の上限。サイトの負荷や規約に合わせて、既定より厳しくしてよい（緩める場合は理由を残す）
     fn retry_policy(&self) -> RetryPolicy {
         RetryPolicy::default()
+    }
+
+    /// サイトを操作する方法。既定は HTTP（API）
+    fn driver(&self) -> Driver {
+        Driver::Http
     }
 
     /// ログインにアカウント（ID とパスワード）が要るか。true なら、アカウントのない予約は login の前に失敗にする
@@ -77,4 +96,23 @@ pub trait TicketSite: Send + Sync {
         ctx: &mut SiteContext,
         attempt: u32,
     ) -> Result<PurchaseOutcome, SiteError>;
+}
+
+impl SiteContext {
+    /// ブラウザ操作モードのブラウザ。`Driver::Browser` のアダプタ以外で呼ぶとエラー
+    pub fn browser(&mut self) -> Result<&mut BrowserSession, SiteError> {
+        self.browser.as_mut().ok_or_else(|| {
+            SiteError::Other(anyhow::anyhow!(
+                "ブラウザが起動していません（アダプタの driver() が Browser か確認してください）"
+            ))
+        })
+    }
+
+    /// 段階を切り替える（HTTP とブラウザの両方の計測に反映する）
+    pub fn set_phase(&mut self, phase: crate::metrics::Phase) {
+        self.http.phase = phase;
+        if let Some(b) = self.browser.as_mut() {
+            b.phase = phase;
+        }
+    }
 }

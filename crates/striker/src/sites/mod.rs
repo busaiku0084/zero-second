@@ -5,9 +5,11 @@
 //! 追加の手順は docs/development/adding-a-site.md。規約の確認（.claude/skills/new-site-adapter）が先。
 
 use std::collections::BTreeMap;
+use std::net::IpAddr;
 use std::sync::Arc;
 
 use anyhow::bail;
+use reqwest::Url;
 
 use crate::config::SitesConfig;
 use crate::site::TicketSite;
@@ -15,6 +17,30 @@ use crate::site::TicketSite;
 #[cfg(test)]
 pub mod fake;
 pub mod mock;
+pub mod saucedemo;
+
+/// 検証用のサイトの接続先を、ループバックか Docker のサービス名（ドットを含まないホスト名）に限る。
+/// 誤って外部のサイトへ送らないため。返すのは末尾の / なしの origin
+pub fn local_origin(base_url: &str, env_name: &str) -> anyhow::Result<String> {
+    let url = Url::parse(base_url)
+        .map_err(|e| anyhow::anyhow!("{env_name} を読めません: {base_url}: {e}"))?;
+    let local = match url.host_str() {
+        Some(host) => match host
+            .trim_start_matches('[')
+            .trim_end_matches(']')
+            .parse::<IpAddr>()
+        {
+            Ok(ip) => ip.is_loopback(),
+            // localhost や Docker のサービス名（mock-site など）。ドメイン名は外部とみなす
+            Err(_) => !host.contains('.'),
+        },
+        None => false,
+    };
+    if !local {
+        bail!("{env_name} はループバックか Docker のサービス名にしてください: {base_url}");
+    }
+    Ok(url.origin().ascii_serialization())
+}
 
 /// サイト id → アダプタ
 #[derive(Default)]
@@ -27,6 +53,9 @@ impl SiteRegistry {
     pub fn from_config(config: &SitesConfig) -> anyhow::Result<Self> {
         let mut registry = Self::default();
         registry.register(Arc::new(mock::MockSite::new(&config.mock_url)?))?;
+        registry.register(Arc::new(saucedemo::SauceDemoSite::new(
+            &config.sauce_demo_url,
+        )?))?;
         Ok(registry)
     }
 

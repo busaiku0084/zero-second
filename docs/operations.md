@@ -23,6 +23,18 @@ make dev-striker              # ワーカー（API がマイグレーション�
 3. 予約・アカウント・結果はユーザーごとに分かれていて、管理者にもほかの人の分は見えない
 
 - https で公開するときは `.env` に `SESSION_COOKIE_SECURE=true` を設定する。招待リンクのホストを固定したいときは `APP_URL` を設定する
+## ブラウザ操作モードを試す（Sauce Demo）
+
+[ADR 0021](adr/0021-browser-mode.md)。Sauce Demo は Docker で動かす（`make docker-up` / `make docker-dev` に含まれる。ホストの `make dev` と組み合わせるなら `docker compose up -d saucedemo`）。
+
+1. アカウントの画面で、サイト「Sauce Demo」にテストユーザーを登録する（パスワードは `secret_sauce`）
+   - `standard_user`: 成功する / `performance_glitch_user`: ログインに約 5 秒かかる / `locked_out_user`: ログインできない / `problem_user`: id が奇数の商品をカートに入れられない
+2. 予約の画面でサイト「Sauce Demo」と商品を選び、自動購入・枚数 1・アカウントを指定して「1 分後」で登録する
+3. 販売開始の 2 分前にワーカーが Chrome を起動し、ログイン → カート → 注文情報の入力まで進めて待つ。販売開始の瞬間に Finish を押す
+4. 実行結果の画面に、操作ごとの所要時間（GOTO / CLICK / TYPE / WAIT）が残る
+
+ホストで動かすときに操作を目で見たいなら `.env` に `STRIKER_BROWSER_HEADFUL=true` を入れて `make dev-striker` を起動し直す。
+
 ## 通知
 
 [ADR 0017](adr/0017-notifications.md)。API が 5 秒おきに確かめ、リマインドと自動購入の結果を送る。
@@ -49,6 +61,7 @@ make dev-striker              # ワーカー（API がマイグレーション�
 | web | 47300 | する（`127.0.0.1:47300`） |
 | api | 47301 | しない（compose のネットワークの中だけ） |
 | mock-site | 47302 | する（`127.0.0.1:47302`。公演ページをブラウザで開くため） |
+| saucedemo | 47303 | する（`127.0.0.1:47303`）。Docker だけで動く。ブラウザ操作モードの確認用（[ADR 0021](adr/0021-browser-mode.md)） |
 | striker | — | 待ち受けない |
 
 ホストの `make dev` と Docker は同じポートを使うので、どちらか一方だけを動かす。
@@ -94,6 +107,10 @@ make docker-dev-down
 | `MOCK_SITE_CLOCK_SKEW_MS` | モックサイトの `Date` ヘッダーに足すずれ（既定 0。時刻合わせの確認用） |
 | `STRIKER_POLL_INTERVAL_MS` | ワーカーが予約を確認する間隔（既定 1000） |
 | `STRIKER_LEAD_MS` | 販売開始の何ミリ秒前に準備を始めるか（既定 120000） |
+| `SAUCE_DEMO_URL` | ワーカー（ブラウザ）が開く Sauce Demo（既定 `http://127.0.0.1:47303`。Docker では `http://saucedemo:47303`） |
+| `STRIKER_CHROME_PATH` | ブラウザ操作モードの Chrome（空なら標準の場所。Docker では `/usr/bin/chromium`） |
+| `STRIKER_BROWSER_HEADFUL` | `true` で画面を出して動かす（ホストで操作を目で確かめるとき） |
+| `STRIKER_CHROME_NO_SANDBOX` | `true` で Chrome のサンドボックスを外す（Docker の中だけ。compose が設定する） |
 | `RUST_LOG` | ワーカーのログレベル（例: `striker=info`） |
 
 ## バックアップ
@@ -122,7 +139,7 @@ DB は 1 ファイルなので、API とワーカーを止めてから `data/` �
 | 予約が `preparing` / `running` のまま | ワーカーが途中で止まった可能性がある。ワーカーを起動し直すと `failed` に戻る。原因はワーカーのログで確認する |
 | ワーカーの起動時に「マイグレーションが未適用です」 | 30 秒待っても API がマイグレーションを当てなかった。`make dev-api` が動いているか確認する |
 | ワーカーの起動時に「MOCK_SITE_URL はループバックか Docker のサービス名にしてください」 | `MOCK_SITE_URL` が外部のホストになっている。`http://127.0.0.1:47302`（Docker では `http://mock-site:47302`）にする |
-| `make docker-up` で「port is already allocated」 | ホストで `make dev` が動いている。止めてから使う。それ以外のプロセスが 4730x を使っていないかは `lsof -nP -iTCP:47300-47302 -sTCP:LISTEN` で確かめる |
+| `make docker-up` で「port is already allocated」 | ホストで `make dev` が動いている。止めてから使う。それ以外のプロセスが 4730x を使っていないかは `lsof -nP -iTCP:47300-47303 -sTCP:LISTEN` で確かめる |
 | モックの予約がログインで失敗する | `make dev-mock-site` が動いているか確認する |
 | 予約が「自動購入に対応していないサイトです」で失敗する | ワーカーにアダプタが登録されていないサイト。規約で自動化が禁止されたサイトは対応しない（ADR 0005） |
 | `ExperimentalWarning: SQLite is an experimental feature` | `node:sqlite` の仕様上の警告で、動作に問題はない（[ADR 0006](adr/0006-node-sqlite.md)） |

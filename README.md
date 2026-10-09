@@ -16,7 +16,7 @@ make setup   # 依存のインストール。.env が無ければ作り、暗号
 make dev     # web・api・モックサイト・ワーカーをまとめて起動 → http://127.0.0.1:47300
 ```
 
-Docker で動かす場合は `make docker-up`（本番相当）か `make docker-dev`（ホットリロード）。ポートは本職の開発と競合しないよう 127.0.0.1 の 47300〜47302 に固定しています（[ADR 0015](./docs/adr/0015-docker-and-port-range.md)）。
+Docker で動かす場合は `make docker-up`（本番相当）か `make docker-dev`（ホットリロード）。ポートは本職の開発と競合しないよう 127.0.0.1 の 47300〜47303 に固定しています（[ADR 0015](./docs/adr/0015-docker-and-port-range.md)）。
 
 モックサイトを選んで「1 分後」に販売開始の予約を登録すると、ワーカーが販売開始の瞬間に購入し、所要時間とリクエストの内訳が残ります（シナリオで売り切れや CAPTCHA も試せます）。
 

@@ -35,7 +35,8 @@ zero-second/
 │           ├── scheduler.rs # 予約のポーリング
 │           ├── executor.rs  # 予約 1 件の購入処理
 │           ├── site.rs      # trait TicketSite（login / prepare / purchase）
-│           ├── sites/       # サイトアダプタ（mock のみ。fake はテスト用）
+│           ├── sites/       # サイトアダプタ（mock: API、saucedemo: ブラウザ操作。fake はテスト用）
+│           ├── browser.rs   # ブラウザ操作モード（ヘッドレス Chrome。ADR 0021）
 │           ├── clock.rs     # 時刻合わせと待機
 │           ├── http.rs      # 計測つき HTTP クライアント（TimedClient）
 │           ├── retry.rs     # 上限つき再試行（RetryPolicy）
@@ -91,7 +92,7 @@ make test         # Vitest + cargo test
 
 ## ポートと Docker（本職の開発に影響させない）
 
-- ポートは web 47300 / api 47301 / mock-site 47302 に固定し、127.0.0.1 でのみ待ち受ける（ADR 0015）。3000・8080 などのよくあるポートは使わない
+- ポートは web 47300 / api 47301 / mock-site 47302 / Sauce Demo 47303（ADR 0021）に固定し、127.0.0.1 でのみ待ち受ける（ADR 0015）。3000・8080 などのよくあるポートは使わない
 - Docker でホストに公開するのは web と mock-site だけで、必ず `127.0.0.1:` を付ける。`container_name`・固定サブネットは使わない
 - Docker の操作は compose のプロジェクト（`zero-second`）の中だけで行う。`docker system prune` など全体に効くコマンドは使わない
 
