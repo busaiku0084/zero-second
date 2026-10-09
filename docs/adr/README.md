@@ -39,3 +39,4 @@
 | [0015](0015-docker-and-port-range.md) | Docker で動かし、ポートは 127.0.0.1 の 47300〜47302 に固定する | 採用 |
 | [0016](0016-login-and-per-user-data.md) | ID とパスワードでログインし、データはユーザーごとに分ける | 採用 |
 | [0017](0017-notifications.md) | 通知は API のプロセスで作り、アプリ内・Web Push・Webhook で届ける | 採用 |
+| [0018](0018-browser-clock-correction.md) | 画面のカウントダウンは、web サーバーの時計とのずれを測って補正する | 採用 |
