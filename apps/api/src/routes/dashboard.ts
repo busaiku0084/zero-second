@@ -7,7 +7,7 @@ import {
   type RunResult,
 } from "@zero-second/shared";
 import { Hono } from "hono";
-import { type Row, toReservation } from "../lib/rows.js";
+import { elapsedMs, type Row, toReservation } from "../lib/rows.js";
 import type { AppEnv } from "../types.js";
 import { validationHook } from "./params.js";
 
@@ -39,6 +39,7 @@ export const dashboard = new Hono<AppEnv>().get(
     const rows = c.var.db
       .prepare(
         `SELECT runs.id, runs.reservation_id, runs.started_at_ms, runs.finished_at_ms, runs.result,
+                runs.clock_offset_ms,
                 reservations.title, reservations.sale_starts_at_ms
          FROM runs JOIN reservations ON reservations.id = runs.reservation_id
          WHERE runs.started_at_ms >= ? AND runs.result IS NOT NULL
@@ -60,7 +61,11 @@ export const dashboard = new Hono<AppEnv>().get(
         reservationId: Number(r.reservation_id),
         title: String(r.title),
         startedAtMs: Number(r.started_at_ms),
-        elapsedMs: Number(r.finished_at_ms) - Number(r.sale_starts_at_ms),
+        elapsedMs: elapsedMs(
+          Number(r.finished_at_ms),
+          Number(r.sale_starts_at_ms),
+          r.clock_offset_ms === null ? null : Number(r.clock_offset_ms),
+        ),
         result,
       });
     }

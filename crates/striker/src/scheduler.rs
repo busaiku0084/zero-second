@@ -10,12 +10,17 @@ use crate::db::Db;
 use crate::executor;
 use crate::model::{ReservationStatus, RunFinish, RunResult};
 use crate::retry::RetryPolicy;
+use crate::site::TicketSite;
 use crate::sites;
+
+/// サイト id からアダプタを引く（テストで差し替える）
+type FindSite = fn(&str) -> Option<Arc<dyn TicketSite>>;
 
 pub struct Scheduler {
     db: Arc<Db>,
     config: Config,
     policy: RetryPolicy,
+    find_site: FindSite,
 }
 
 impl Scheduler {
@@ -24,6 +29,7 @@ impl Scheduler {
             db,
             config,
             policy: RetryPolicy::default(),
+            find_site: sites::find,
         }
     }
 
@@ -65,7 +71,7 @@ impl Scheduler {
             if !self.db.claim(reservation.id)? {
                 continue;
             }
-            let Some(site) = sites::find(&reservation.site) else {
+            let Some(site) = (self.find_site)(&reservation.site) else {
                 // 規約で自動化が禁止されたサイトなど、アダプタのない予約は動かさない（ADR 0005）
                 tracing::warn!(reservation_id = reservation.id, site = %reservation.site, "未対応のサイトです");
                 let run_id = self.db.create_run(reservation.id, now_ms())?;
@@ -110,6 +116,7 @@ mod tests {
 
     use super::*;
     use crate::db::testing::*;
+    use crate::sites::fake::FakeSite;
 
     fn scheduler(db: Arc<Db>) -> Scheduler {
         Scheduler::new(
@@ -140,11 +147,13 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn mock_reservation_runs_to_completion() {
+    async fn supported_reservation_runs_to_completion() {
         let db = Arc::new(migrated_db());
         let id = insert_reservation(&db, "mock", "auto", now_ms() + 20);
         let mut tasks = JoinSet::new();
-        scheduler(Arc::clone(&db)).poll(&mut tasks).unwrap();
+        let mut scheduler = scheduler(Arc::clone(&db));
+        scheduler.find_site = |_| Some(Arc::new(FakeSite::default()));
+        scheduler.poll(&mut tasks).unwrap();
         assert_eq!(tasks.len(), 1);
         let result = tasks.join_next().await.unwrap().unwrap().unwrap();
         assert_eq!(result, RunResult::Succeeded);

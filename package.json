@@ -8,6 +8,7 @@
   "scripts": {
     "dev:web": "pnpm --filter @zero-second/web dev",
     "dev:api": "pnpm --filter @zero-second/api dev",
+    "dev:mock-site": "pnpm --filter @zero-second/mock-site dev",
     "check": "biome check .",
     "check:fix": "biome check --write .",
     "type-check": "pnpm -r type-check",

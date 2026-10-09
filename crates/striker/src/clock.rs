@@ -13,49 +13,135 @@ pub fn now_ms() -> i64 {
         .unwrap_or_default()
 }
 
-/// 1 回の往復からサーバー時刻とのずれ（サーバー − ローカル、ミリ秒）を推定する。
+/// サーバー時刻とのずれ（サーバー − ローカル、ミリ秒）がとりうる範囲 `[lo, hi)`。
 ///
-/// サーバー時刻は往復の中間で刻まれたとみなす（NTP と同じ考え方）。
-pub fn estimate_offset_ms(local_send_ms: i64, local_recv_ms: i64, server_ms: i64) -> i64 {
-    let midpoint = local_send_ms + (local_recv_ms - local_send_ms) / 2;
-    server_ms - midpoint
+/// `Date` ヘッダーは秒単位（切り捨て）なので、1 回の往復からは幅 1 秒 + 往復時間の範囲しか分からない。
+/// 秒が切り替わる瞬間を狙って何回か送り、範囲を二分探索で狭める（NTP と同じく、サーバーは
+/// 送信から受信までのどこかで時刻を刻んだとみなす）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct OffsetBounds {
+    pub lo: i64,
+    pub hi: i64,
 }
 
-/// `url` に HEAD を何回か送り、`Date` ヘッダーからサーバー時刻とのずれを推定する。
-/// 往復時間が最も短かった回の値を使う。取れなければ None。
+impl OffsetBounds {
+    /// 1 回目の応答から作る
+    pub fn new(local_send_ms: i64, local_recv_ms: i64, server_second_ms: i64) -> Self {
+        Self {
+            lo: server_second_ms - local_recv_ms,
+            hi: server_second_ms + 1_000 - local_send_ms,
+        }
+    }
+
+    /// 応答を 1 回分反映する。矛盾する（サーバー側の揺れなど）ときは反映せず false
+    pub fn update(
+        &mut self,
+        local_send_ms: i64,
+        local_recv_ms: i64,
+        server_second_ms: i64,
+    ) -> bool {
+        let other = Self::new(local_send_ms, local_recv_ms, server_second_ms);
+        let lo = self.lo.max(other.lo);
+        let hi = self.hi.min(other.hi);
+        if lo >= hi {
+            return false;
+        }
+        *self = Self { lo, hi };
+        true
+    }
+
+    pub fn width(self) -> i64 {
+        self.hi - self.lo
+    }
+
+    /// 推定値（範囲の中央）
+    pub fn estimate(self) -> i64 {
+        self.lo + self.width() / 2
+    }
+
+    /// 次に送る時刻（ローカル、UNIX ミリ秒）。ずれが範囲の中央だとしたとき、サーバーで秒が
+    /// 切り替わる瞬間に届くようにする。`now_ms` より後で最も早い時刻を返す
+    pub fn next_send_at(self, now_ms: i64, rtt_ms: i64) -> i64 {
+        let half_rtt = rtt_ms / 2;
+        // サーバーに届く時刻（ローカル）m が m + estimate ≡ 0 (mod 1000) になるようにする
+        let earliest_arrival = now_ms + half_rtt + 1;
+        let server = earliest_arrival + self.estimate();
+        let next_second = server.div_euclid(1_000) * 1_000 + 1_000;
+        next_second - self.estimate() - half_rtt
+    }
+}
+
+/// これ以上は狭めなくてよい幅（往復時間がこれより長ければ往復時間まで）
+const ENOUGH_WIDTH_MS: i64 = 10;
+
+/// `url` に HEAD を送り、`Date` ヘッダーからサーバー時刻とのずれを推定する。取れなければ None。
 ///
-/// TODO(#4): `Date` ヘッダーは秒単位なので誤差が最大 ±500ms ある。秒が切り替わる瞬間を
-/// 探すように間隔をずらして測り、ミリ秒の精度に近づける
-pub async fn measure_offset_ms(http: &mut TimedClient, url: &str, samples: u32) -> Option<i64> {
+/// 1 回の測定に最大 1 秒かかるので、`deadline_ms`（ローカル）を過ぎそうなら途中の範囲で打ち切る。
+pub async fn measure_offset_ms(
+    http: &mut TimedClient,
+    url: &str,
+    max_probes: u32,
+    deadline_ms: i64,
+) -> Option<i64> {
     let previous = http.phase;
     http.phase = Phase::Clock;
-    let mut best: Option<(i64, i64)> = None; // (往復時間, ずれ)
-    for _ in 0..samples {
-        let Ok(request) = http.inner().head(url).build() else {
-            break;
-        };
-        let send = now_ms();
-        let Ok(response) = http.execute(request).await else {
+    let mut bounds: Option<OffsetBounds> = None;
+    let mut rtt = 0;
+    for _ in 0..max_probes {
+        if let Some(b) = bounds {
+            if b.width() <= ENOUGH_WIDTH_MS.max(rtt) {
+                break;
+            }
+            let send_at = b.next_send_at(now_ms(), rtt);
+            if send_at + rtt > deadline_ms {
+                break;
+            }
+            wait_until(send_at).await;
+        }
+        let Some((send, recv, server_second)) = probe(http, url).await else {
             continue;
         };
-        let recv = now_ms();
-        let server_ms = response
-            .headers()
-            .get(reqwest::header::DATE)
-            .and_then(|v| v.to_str().ok())
-            .and_then(|v| httpdate::parse_http_date(v).ok())
-            .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
-            .map(|d| d.as_millis() as i64);
-        if let Some(server_ms) = server_ms {
-            let rtt = recv - send;
-            let offset = estimate_offset_ms(send, recv, server_ms);
-            if best.is_none_or(|(best_rtt, _)| rtt < best_rtt) {
-                best = Some((rtt, offset));
+        rtt = recv - send;
+        match bounds.as_mut() {
+            None => bounds = Some(OffsetBounds::new(send, recv, server_second)),
+            Some(b) => {
+                if !b.update(send, recv, server_second) {
+                    tracing::debug!(
+                        ?b,
+                        send,
+                        recv,
+                        server_second,
+                        "時刻合わせの応答が範囲と矛盾しました"
+                    );
+                }
             }
         }
     }
     http.phase = previous;
-    best.map(|(_, offset)| offset)
+    if let Some(b) = bounds {
+        tracing::info!(
+            offset_ms = b.estimate(),
+            width_ms = b.width(),
+            "サーバー時刻とのずれを測りました"
+        );
+    }
+    bounds.map(OffsetBounds::estimate)
+}
+
+/// HEAD を 1 回送り、(送信時刻, 受信時刻, Date ヘッダーの時刻) を返す
+async fn probe(http: &mut TimedClient, url: &str) -> Option<(i64, i64, i64)> {
+    let request = http.inner().head(url).build().ok()?;
+    let send = now_ms();
+    let response = http.execute(request).await.ok()?;
+    let recv = now_ms();
+    let server = response
+        .headers()
+        .get(reqwest::header::DATE)
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| httpdate::parse_http_date(v).ok())
+        .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
+        .map(|d| d.as_millis() as i64)?;
+    Some((send, recv, server))
 }
 
 /// 最後にビジーウェイトで合わせる幅
@@ -80,14 +166,63 @@ pub async fn wait_until(target_ms: i64) {
 mod tests {
     use super::*;
 
-    #[test]
-    fn server_ahead() {
-        assert_eq!(estimate_offset_ms(1_000, 1_100, 1_250), 200);
+    /// ずれが `offset` のサーバーに、往復 `rtt`（片道ずつ半分）で問い合わせたときの応答
+    fn simulate(send: i64, rtt: i64, offset: i64) -> (i64, i64, i64) {
+        let arrival = send + rtt / 2;
+        let server_second = (arrival + offset).div_euclid(1_000) * 1_000;
+        (send, send + rtt, server_second)
+    }
+
+    /// 二分探索で狭めていき、最終的な範囲を返す
+    fn converge(offset: i64, rtt: i64, start: i64) -> OffsetBounds {
+        let (s, r, d) = simulate(start, rtt, offset);
+        let mut b = OffsetBounds::new(s, r, d);
+        let mut now = r;
+        for _ in 0..10 {
+            let send = b.next_send_at(now, rtt);
+            assert!(send > now);
+            let (s, r, d) = simulate(send, rtt, offset);
+            assert!(b.update(s, r, d));
+            assert!(
+                b.lo <= offset && offset < b.hi,
+                "{b:?} が {offset} を含まない"
+            );
+            now = r;
+        }
+        b
     }
 
     #[test]
-    fn server_behind() {
-        assert_eq!(estimate_offset_ms(1_000, 1_100, 1_000), -50);
+    fn first_sample_spans_a_second() {
+        let b = OffsetBounds::new(10_000, 10_020, 10_000);
+        assert_eq!((b.lo, b.hi), (-20, 1_000));
+    }
+
+    #[test]
+    fn converges_to_true_offset() {
+        for offset in [0, 1, -304, 499, -1_250, 123_456] {
+            for start in [1_000_000, 1_000_437, 1_000_999] {
+                let b = converge(offset, 2, start);
+                assert!(b.width() <= 4, "offset {offset}: {b:?}");
+                assert!((b.estimate() - offset).abs() <= 2, "offset {offset}: {b:?}");
+            }
+        }
+    }
+
+    #[test]
+    fn width_is_limited_by_rtt() {
+        // 送信から受信までのどこで刻まれたかは分からないので、往復時間より狭くはならない
+        let b = converge(-304, 40, 1_000_000);
+        assert!(b.width() <= 42, "{b:?}");
+        assert!((b.estimate() + 304).abs() <= 20);
+    }
+
+    #[test]
+    fn contradicting_sample_is_ignored() {
+        let mut b = OffsetBounds { lo: 0, hi: 100 };
+        // ずれが 500 以上でないと説明できない応答
+        assert!(!b.update(10_000, 10_000, 10_500));
+        assert_eq!((b.lo, b.hi), (0, 100));
     }
 
     #[tokio::test]

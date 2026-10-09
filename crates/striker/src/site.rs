@@ -50,7 +50,7 @@ pub trait TicketSite: Send + Sync {
     fn id(&self) -> &'static str;
 
     /// サーバー時刻を測るための URL（Date ヘッダーを返すもの）。None なら端末の時計を使う
-    fn clock_probe_url(&self) -> Option<&str> {
+    fn clock_probe_url(&self, _reservation: &Reservation) -> Option<String> {
         None
     }
 

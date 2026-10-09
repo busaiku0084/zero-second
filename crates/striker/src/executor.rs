@@ -12,8 +12,10 @@ use crate::model::{PurchaseOutcome, Reservation, ReservationStatus, RunFinish, R
 use crate::retry::RetryPolicy;
 use crate::site::{SiteContext, SiteError, TicketSite};
 
-/// 時刻合わせで送るリクエストの回数
-const CLOCK_SAMPLES: u32 = 5;
+/// 時刻合わせで送るリクエストの上限（1 回ごとに範囲がおよそ半分になる。1 秒 → 約 8ms）
+const CLOCK_PROBES: u32 = 8;
+/// 時刻合わせは販売開始のこれだけ前までに終える
+const CLOCK_MARGIN_MS: i64 = 500;
 
 /// 取得済み（preparing）の予約を 1 件実行し、結果を DB に保存する
 pub async fn execute(
@@ -82,9 +84,10 @@ async fn run_steps(
     ctx.http.phase = Phase::Prepare;
     site.prepare(ctx).await?;
 
-    if let Some(url) = site.clock_probe_url() {
-        let url = url.to_string();
-        *clock_offset_ms = clock::measure_offset_ms(&mut ctx.http, &url, CLOCK_SAMPLES).await;
+    if let Some(url) = site.clock_probe_url(&ctx.reservation) {
+        let deadline_ms = ctx.reservation.sale_starts_at_ms - CLOCK_MARGIN_MS;
+        *clock_offset_ms =
+            clock::measure_offset_ms(&mut ctx.http, &url, CLOCK_PROBES, deadline_ms).await;
     }
 
     // サーバーの時計で販売開始になる瞬間 = 端末の時計で (販売開始 − ずれ)
@@ -116,7 +119,7 @@ mod tests {
 
     use super::*;
     use crate::db::testing::*;
-    use crate::sites::mock::{MockBehavior, MockSite};
+    use crate::sites::fake::{FakeBehavior, FakeSite};
 
     fn fast_policy() -> RetryPolicy {
         RetryPolicy {
@@ -126,12 +129,12 @@ mod tests {
         }
     }
 
-    async fn run_with(behavior: MockBehavior) -> (Db, i64, RunResult) {
+    async fn run_with(behavior: FakeBehavior) -> (Db, i64, RunResult) {
         let db = migrated_db();
         let id = insert_reservation(&db, "mock", "auto", now_ms() + 20);
         let reservation = db.due_reservations(now_ms(), 60_000).unwrap().remove(0);
         assert!(db.claim(id).unwrap());
-        let site = MockSite { behavior };
+        let site = FakeSite { behavior };
         let result = execute(&db, &site, reservation, &fast_policy())
             .await
             .unwrap();
@@ -140,7 +143,7 @@ mod tests {
 
     #[tokio::test]
     async fn success_marks_reservation_succeeded() {
-        let (db, id, result) = run_with(MockBehavior::Succeed).await;
+        let (db, id, result) = run_with(FakeBehavior::Succeed).await;
         assert_eq!(result, RunResult::Succeeded);
         assert_eq!(status_of(&db, id), "succeeded");
         assert_eq!(last_run(&db, id).0, "succeeded");
@@ -148,13 +151,13 @@ mod tests {
 
     #[tokio::test]
     async fn transient_errors_are_retried() {
-        let (_, _, result) = run_with(MockBehavior::FailTimes(2)).await;
+        let (_, _, result) = run_with(FakeBehavior::FailTimes(2)).await;
         assert_eq!(result, RunResult::Succeeded);
     }
 
     #[tokio::test]
     async fn too_many_errors_fail() {
-        let (db, id, result) = run_with(MockBehavior::FailTimes(5)).await;
+        let (db, id, result) = run_with(FakeBehavior::FailTimes(5)).await;
         assert_eq!(result, RunResult::Failed);
         assert_eq!(status_of(&db, id), "failed");
         assert!(last_run(&db, id).1.unwrap().contains("一時的なエラー"));
@@ -162,14 +165,14 @@ mod tests {
 
     #[tokio::test]
     async fn human_action_stops_without_retry() {
-        let (db, id, result) = run_with(MockBehavior::NeedsHuman).await;
+        let (db, id, result) = run_with(FakeBehavior::NeedsHuman).await;
         assert_eq!(result, RunResult::NeedsHuman);
         assert_eq!(status_of(&db, id), "needs_human");
     }
 
     #[tokio::test]
     async fn sold_out_is_recorded() {
-        let (db, id, result) = run_with(MockBehavior::SoldOut).await;
+        let (db, id, result) = run_with(FakeBehavior::SoldOut).await;
         assert_eq!(result, RunResult::SoldOut);
         assert_eq!(status_of(&db, id), "failed");
     }

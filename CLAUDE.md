@@ -25,7 +25,8 @@ Web で予約を登録し、販売開始時刻に Rust のワーカー（striker
 zero-second/
 ├── apps/
 │   ├── web/              # Next.js（App Router）予約登録・ダッシュボード
-│   └── api/              # Hono 予約・アカウント・実行結果の API（node:sqlite）
+│   ├── api/              # Hono 予約・アカウント・実行結果の API（node:sqlite）
+│   └── mock-site/        # Hono 検証用のチケットサイト（striker の購入先は今これだけ）
 ├── packages/
 │   └── shared/           # web・api 共通のスキーマ（zod）・型・サイト一覧
 ├── crates/
@@ -34,7 +35,7 @@ zero-second/
 │           ├── scheduler.rs # 予約のポーリング
 │           ├── executor.rs  # 予約 1 件の購入処理
 │           ├── site.rs      # trait TicketSite（login / prepare / purchase）
-│           ├── sites/       # サイトアダプタ（mock のみ）
+│           ├── sites/       # サイトアダプタ（mock のみ。fake はテスト用）
 │           ├── clock.rs     # 時刻合わせと待機
 │           ├── http.rs      # 計測つき HTTP クライアント（TimedClient）
 │           ├── retry.rs     # 上限つき再試行（RetryPolicy）
@@ -71,9 +72,11 @@ zero-second/
 ## 開発コマンド
 
 ```bash
-make setup        # 依存のインストール
+make setup        # 依存のインストールと .env の作成
+make dev          # 下の 4 つをまとめて起動
 make dev-web      # http://localhost:3000
 make dev-api      # http://localhost:8787
+make dev-mock-site # http://127.0.0.1:8788（検証用のチケットサイト）
 make dev-striker  # ワーカーの起動
 make check        # Biome + rustfmt + clippy（警告 0 件）
 make check-fix    # 自動修正
