@@ -1,9 +1,11 @@
 import type {
+  NotificationKind,
   PaymentMethod,
   ReservationMode,
   ReservationStatus,
   RunResult,
   UserRole,
+  WebhookKind,
 } from "./schemas";
 import type { SiteId } from "./sites";
 
@@ -28,6 +30,8 @@ export type Reservation = {
   saleStartsAtMs: number;
   mode: ReservationMode;
   notes: string;
+  /** 販売開始の何分前に通知するか（多い順） */
+  reminderMinutes: number[];
   status: ReservationStatus;
   createdAtMs: number;
   updatedAtMs: number;
@@ -109,3 +113,29 @@ export type Invitation = {
 
 /** 招待を作ったときだけ返す。トークンは DB にハッシュしか残らないので、このとき以外は取り出せない */
 export type InvitationCreated = Invitation & { token: string };
+
+export type DeliveryStatus = "sent" | "failed" | "skipped";
+
+export type Notification = {
+  id: number;
+  reservationId: number | null;
+  kind: NotificationKind;
+  title: string;
+  body: string;
+  /** 開く画面（web の中のパス） */
+  url: string;
+  pushStatus: DeliveryStatus | null;
+  webhookStatus: DeliveryStatus | null;
+  createdAtMs: number;
+  readAtMs: number | null;
+};
+
+export type NotificationSummary = { unreadCount: number };
+
+export type NotificationSettings = {
+  /** Web Push の公開鍵。サーバーに鍵が設定されていなければ null（ブラウザ通知は使えない） */
+  pushPublicKey: string | null;
+  pushSubscriptionCount: number;
+  /** 設定済みの Webhook の種類（URL そのものは返さない） */
+  webhookKind: WebhookKind | null;
+};

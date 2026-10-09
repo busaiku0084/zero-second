@@ -23,6 +23,15 @@ make dev-striker              # ワーカー（API がマイグレーション�
 3. 予約・アカウント・結果はユーザーごとに分かれていて、管理者にもほかの人の分は見えない
 
 - https で公開するときは `.env` に `SESSION_COOKIE_SECURE=true` を設定する。招待リンクのホストを固定したいときは `APP_URL` を設定する
+## 通知
+
+[ADR 0017](adr/0017-notifications.md)。API が 5 秒おきに確かめ、リマインドと自動購入の結果を送る。
+
+- アプリ内（ヘッダーのベル）は設定なしで届く
+- ブラウザ通知: `.env` の `WEB_PUSH_PUBLIC_KEY` / `WEB_PUSH_PRIVATE_KEY` が要る。`make setup` で作られる。以前に作った `.env` には `make web-push-keys` で足し、API（Docker なら `make docker-up`）を起動し直す。そのあと設定画面の「この端末で受け取る」を押す
+- Discord / Slack: 設定画面に受信用 Webhook の URL を入れる
+- 届かないときは、設定画面の「テスト通知を送る」で経路ごとの結果を確かめる。通知の一覧にも送信結果が残る
+
 - パスワードを忘れた場合の画面はまだない。管理者のパスワードを忘れたときは、API を止めて DB の `users` を直接直すか、`sessions`・`users` を消して `/setup` からやり直す
 
 ## ポート
@@ -98,6 +107,8 @@ DB は 1 ファイルなので、API とワーカーを止めてから `data/` �
 | 症状 | 対処 |
 |---|---|
 | ログインできず「ログインの失敗が続いたため…」と出る | 同じ ID で 15 分に 5 回失敗した。時間をおくか、API を再起動すると解除される |
+| ブラウザ通知が「サーバーにブラウザ通知の鍵が設定されていない」と出る | `make web-push-keys` で `.env` に鍵を足し、API を起動し直す |
+| ブラウザ通知がオンにできない | ブラウザのサイトの設定で通知を許可する。http で使えるのは 127.0.0.1 / localhost だけ（それ以外は https が要る）。iPhone はホーム画面に追加すると使える |
 | ログインしてもすぐログイン画面に戻る | https 以外で `SESSION_COOKIE_SECURE=true` にしていると Cookie が保存されない。http://127.0.0.1 で使うなら外す |
 | `make docker-dev` で画面のボタンが反応しない | `apps/web/next.config.ts` の `allowedDevOrigins` に開いているホスト（127.0.0.1 / localhost）が入っているか確認する |
 | Web に「API に接続できません」と出る | `make dev-api` が動いているか、`API_URL` が正しいかを確認する |

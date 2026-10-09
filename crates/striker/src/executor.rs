@@ -49,7 +49,7 @@ pub async fn execute(
         Ok(outcome) => (RunResult::Succeeded, None, Some(outcome)),
         Err(SiteError::SoldOut) => (RunResult::SoldOut, Some("売り切れ".to_string()), None),
         Err(e @ SiteError::HumanActionRequired(_)) => {
-            // TODO(#11): 通知を送る
+            // 通知は API の Notifier が runs から作って送る（ADR 0017）
             tracing::warn!(reservation_id, error = %e, "人の対応が必要です");
             (RunResult::NeedsHuman, Some(e.to_string()), None)
         }

@@ -114,6 +114,23 @@
 - `result`: `succeeded` / `sold_out` / `failed` / `needs_human`
 - `startedAtMs` を省略すると販売開始時刻を使う。所要時間（`elapsedMs`）は「完了 + 時計のずれ（`clockOffsetMs`、無ければ 0）− 販売開始」（[ADR 0013](adr/0013-clock-sync-bisection-and-server-time-elapsed.md)）
 
+### 通知
+
+本人の通知と届け先の設定（[ADR 0017](adr/0017-notifications.md)）。
+
+| メソッド | パス | 内容 |
+|---|---|---|
+| GET | `/notifications?limit=50` | 新しい順の一覧 |
+| GET | `/notifications/summary` | `{ unreadCount }` |
+| POST | `/notifications/read` | すべて既読にする → 204 |
+| GET | `/notifications/settings` | `{ pushPublicKey, pushSubscriptionCount, webhookKind }`。Webhook の URL は返さない |
+| PUT | `/notifications/webhook` | `{ webhookUrl }`（Discord / Slack の Webhook のみ。`null` で解除）→ 204 |
+| POST | `/notifications/push-subscriptions` | ブラウザの購読 `{ endpoint, keys: { p256dh, auth } }` → 201。鍵が未設定なら 409、対応外の送り先は 400 |
+| DELETE | `/notifications/push-subscriptions` | `{ endpoint }` → 204 |
+| POST | `/notifications/test` | テスト通知を作って送る → `{ pushStatus, webhookStatus }` |
+
+予約の `reminderMinutes`（販売開始の何分前に知らせるか。既定 `[30, 5]`、最大 5 個）は、作成・更新で指定できる。
+
 ### 実行結果
 
 | メソッド | パス | 内容 |

@@ -7,10 +7,11 @@ import { AutoRefresh } from "@/components/AutoRefresh";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { Countdown } from "@/components/Countdown";
 import { ManualRunForm } from "@/components/ManualRunForm";
+import { ReminderEditor } from "@/components/ReminderEditor";
 import { ResultPill, StatusPill } from "@/components/StatusPill";
 import { ApiError, api } from "@/lib/api";
 import { formatDateTime, formatElapsed } from "@/lib/format";
-import { MODE_LABELS, PAYMENT_LABELS } from "@/lib/labels";
+import { MODE_LABELS, PAYMENT_LABELS, reminderLabel } from "@/lib/labels";
 
 type Detail = Reservation & { runs: Run[] };
 
@@ -131,6 +132,12 @@ export default async function ReservationPage({ params }: PageProps<"/reservatio
               <dd>{r.quantity} 枚</dd>
               <dt>支払い</dt>
               <dd>{PAYMENT_LABELS[r.paymentMethod]}</dd>
+              <dt>通知</dt>
+              <dd>
+                {r.reminderMinutes.length > 0
+                  ? r.reminderMinutes.map(reminderLabel).join("・")
+                  : "なし"}
+              </dd>
               <dt>URL</dt>
               <dd>
                 <a href={r.eventUrl} target="_blank" rel="noreferrer">
@@ -145,6 +152,13 @@ export default async function ReservationPage({ params }: PageProps<"/reservatio
               ) : null}
             </dl>
           </section>
+
+          {r.status === "pending" ? (
+            <section className="panel stack" aria-label="通知のタイミング">
+              <h3>通知のタイミング</h3>
+              <ReminderEditor reservationId={r.id} minutes={r.reminderMinutes} />
+            </section>
+          ) : null}
 
           {!locked ? (
             <section className="panel stack" aria-label="操作">

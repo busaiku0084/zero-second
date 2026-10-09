@@ -52,6 +52,17 @@ zero-second にログインするユーザー（[ADR 0016](adr/0016-login-and-pe
 | `mode` | `manual`（手で購入）/ `auto`（ワーカーが購入） |
 | `status` | 下の状態遷移を参照 |
 
+### notifications / push_subscriptions / notification_settings
+通知（[ADR 0017](adr/0017-notifications.md)）。
+
+| テーブル | 内容 |
+|---|---|
+| `notifications` | アプリ内の通知と送信履歴。`kind`（reminder / needs_human / succeeded / failed / test）、`url`（開く画面）、`push_status`・`webhook_status`（sent / failed / skipped）、`read_at_ms`。`(user_id, dedupe_key)` で一意 |
+| `push_subscriptions` | ブラウザ通知の購読。`endpoint` で一意（同じブラウザで別のユーザーがログインしたら付け替える） |
+| `notification_settings` | ユーザーごとの Webhook。URL は暗号化して保存する |
+
+`reservations.reminder_minutes` は通知のタイミング（JSON の配列、分）。`runs.notified_at_ms` は自動購入の結果を通知した時刻。
+
 ### runs
 購入の実行結果（手動の記録と、ワーカーの実行の両方）。
 

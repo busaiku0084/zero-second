@@ -50,6 +50,7 @@ zero-second/
 - 時刻はすべて UNIX ミリ秒の INTEGER で保存する
 - マイグレーションは api の起動時に自動で適用される（`schema_migrations` で管理）
 - アカウントのパスワードは AES-256-GCM で暗号化して保存し、API のレスポンスには含めない
+- 通知は API の Notifier（`apps/api/src/notify/`）が作って届ける。ワーカーからは送らない。外へ送る先は Web Push のサービスと Discord / Slack の Webhook だけ（ADR 0017）
 - ログインは ID + パスワード（招待制）。セッションは API が毎回確かめ、データは `user_id` でユーザーごとに分ける（ADR 0016）
 
 ## ドキュメント
