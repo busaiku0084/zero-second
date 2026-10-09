@@ -77,7 +77,7 @@ scheduler（1 秒ごと）
 | ファイル | 役割 |
 |---|---|
 | `main.rs` | 起動。設定の読み込み・マイグレーションの確認（API が当てるまで最大 30 秒待つ）・途中で止まった予約の復旧 |
-| `config.rs` | 環境変数（`DATABASE_URL`・`STRIKER_POLL_INTERVAL_MS`・`STRIKER_LEAD_MS`） |
+| `config.rs` | 環境変数（`DATABASE_URL`・`STRIKER_POLL_INTERVAL_MS`・`STRIKER_LEAD_MS`）と、アダプタごとの設定（`SitesConfig`） |
 | `scheduler.rs` | ポーリングと、予約ごとのタスクの起動。Ctrl+C で実行中の購入を待って止まる |
 | `executor.rs` | 予約 1 件の購入処理と結果の保存 |
 | `db.rs` | 予約の取得（条件付き更新）・状態の更新・結果と計測値の保存 |
@@ -85,7 +85,7 @@ scheduler（1 秒ごと）
 | `http.rs` | `TimedClient`。リクエストを計測し、計測値をメモリに溜める |
 | `retry.rs` | `RetryPolicy`。回数と間隔に上限のある再試行 |
 | `site.rs` | `TicketSite` trait と `SiteError`・`SiteContext` |
-| `sites/` | 登録済みのアダプタ（今は `mock.rs` のみ。`fake.rs` はテスト用） |
+| `sites/` | `SiteRegistry` と登録済みのアダプタ（今は `mock.rs` のみ。`fake.rs` はテスト用）。追加の手順は `docs/development/adding-a-site.md` |
 
 ### 残っていること（#4）
 

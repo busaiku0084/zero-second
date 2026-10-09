@@ -20,9 +20,24 @@ describe("reservationCreateSchema", () => {
     expect(
       reservationCreateSchema.safeParse({ ...base, site: "livepocket", mode: "auto" }).success,
     ).toBe(false);
-    expect(reservationCreateSchema.safeParse({ ...base, site: "mock", mode: "auto" }).success).toBe(
-      true,
-    );
+    expect(
+      reservationCreateSchema.safeParse({
+        ...base,
+        site: "mock",
+        eventUrl: "http://127.0.0.1:8788/events/ok",
+        mode: "auto",
+      }).success,
+    ).toBe(true);
+  });
+
+  it("公演 URL は選んだサイトのホスト（サブドメインを含む）に限る", () => {
+    const parse = (site: string, eventUrl: string) =>
+      reservationCreateSchema.safeParse({ ...base, site, eventUrl }).success;
+    expect(parse("ticketdive", "https://ticketdive.com/event/x")).toBe(true);
+    expect(parse("livepocket", "https://t.livepocket.jp/e/abc")).toBe(true);
+    expect(parse("ticketdive", "https://livepocket.jp/e/abc")).toBe(false);
+    expect(parse("ticketdive", "https://ticketdive.com.example.com/event/x")).toBe(false);
+    expect(parse("mock", "https://ticketdive.com/event/x")).toBe(false);
   });
 
   it("エラーメッセージは日本語", () => {

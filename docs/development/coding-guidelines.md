@@ -39,7 +39,7 @@ zero-second のコードを書くときの決まりごと。CLAUDE.md は要点�
 - `import type` を使い分ける（`verbatimModuleSyntax`）
 - 共有パッケージ（`packages/shared`）内の import は拡張子なしで書く（Next.js のビルドで `.js` → `.ts` が解決されないため）
 - Biome の警告 0 件を保つ。抑制コメントは理由を書いたうえで最小限にする
-- 入力のスキーマ・API のレスポンス型・サイト一覧は `packages/shared` に置き、web と api で同じものを使う
+- 入力のスキーマ・API のレスポンス型・サイト一覧は `packages/shared` に置き、web と api で同じものを使う。サイト一覧の実体は `sites.json`（striker のテストも読む）
 
 ## 3. API（Hono）
 
@@ -98,7 +98,7 @@ zero-second のコードを書くときの決まりごと。CLAUDE.md は要点�
 - HTTP のリクエストは必ず `TimedClient` を通して計測する
 - 再試行は `RetryPolicy` を使う。`SoldOut` と `HumanActionRequired` は再試行しない
 - 時刻計算・再試行の判定などの純粋な関数には単体テストを付ける
-- サイトのアダプタを追加するときは `.claude/skills/new-site-adapter` の手順に従う
+- サイトのアダプタを追加するときは `.claude/skills/new-site-adapter` と `docs/development/adding-a-site.md` の手順に従う。アダプタは送り先のホストを設定で固定し、予約の公演 URL のホストへそのまま送らない
 
 ## 6. DB・マイグレーション
 

@@ -8,6 +8,7 @@
 | [operations.md](operations.md) | 起動・環境変数・バックアップ・困ったとき |
 | [development/coding-guidelines.md](development/coding-guidelines.md) | コーディングルール |
 | [development/workflow.md](development/workflow.md) | issue・ブランチ・コミット・PR・CI の進め方 |
+| [development/adding-a-site.md](development/adding-a-site.md) | サイトを追加する手順 |
 | [adr/](adr/README.md) | 設計判断の記録（ADR） |
 | [sites/README.md](sites/README.md) | サイトごとの利用規約の確認結果と対応状況 |
 

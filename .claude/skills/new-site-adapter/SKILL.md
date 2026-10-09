@@ -28,11 +28,14 @@ allowed-tools: Read, Glob, Grep, Edit, Write, WebFetch, Bash(cargo *), Bash(make
 
 ## Step 3: 実装
 
-1. `crates/striker/src/sites/<site>.rs` に `TicketSite` を実装する
-2. `crates/striker/src/sites/mod.rs` に登録する
-3. 送るリクエストはすべて `RequestTiming` で計測する
-4. 再試行には回数と間隔の上限を設ける
-5. 記録済みレスポンス（実値を伏せたもの）を使ったテストを書く
+`docs/development/adding-a-site.md` の手順に従う。要点:
+
+1. `packages/shared/src/sites.json` にサイトを足す（`hosts`・`automation` を規約の確認結果どおりに）。購入補助だけならここで終わり
+2. `crates/striker/src/sites/<site>.rs` に `TicketSite` を実装する（`mock.rs` が見本）。リクエストは `ctx.http`（`TimedClient`）で送り、送り先のホストは設定で固定する
+3. 設定が要れば `config.rs` の `SitesConfig` に足す
+4. `SiteRegistry::from_config` に登録する
+5. 再試行の上限は既定以下にする（`retry_policy()`）
+6. 応答の解釈を純粋関数にしてテストする。記録済みレスポンスは実値を伏せる
 
 ## Step 4: 確認
 

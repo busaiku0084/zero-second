@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { findSite, SITE_IDS } from "./sites";
+import { eventUrlMatchesSite, findSite, SITE_IDS } from "./sites";
 
 // バリデーションのメッセージを日本語にする（web・api 共通）
 z.config(z.locales.ja());
@@ -64,10 +64,18 @@ function autoModeAllowed(v: { site?: string; mode?: ReservationMode }): boolean 
 
 const AUTO_MODE_MESSAGE = "このサイトは利用規約により自動購入に対応していません";
 
-export const reservationCreateSchema = reservationFields.refine(autoModeAllowed, {
-  message: AUTO_MODE_MESSAGE,
-  path: ["mode"],
-});
+/** 公演 URL がサイトのものか（別サイトの URL を登録しないように） */
+function eventUrlAllowed(v: { site?: string; eventUrl?: string }): boolean {
+  if (v.site === undefined || v.eventUrl === undefined) return true;
+  const site = findSite(v.site);
+  return site === undefined || eventUrlMatchesSite(site, v.eventUrl);
+}
+
+export const EVENT_URL_MESSAGE = "選んだサイトの公演ページの URL を入力してください";
+
+export const reservationCreateSchema = reservationFields
+  .refine(autoModeAllowed, { message: AUTO_MODE_MESSAGE, path: ["mode"] })
+  .refine(eventUrlAllowed, { message: EVENT_URL_MESSAGE, path: ["eventUrl"] });
 
 export const reservationUpdateSchema = reservationFields
   .omit({ site: true })

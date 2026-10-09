@@ -12,6 +12,14 @@ pub struct Config {
     pub poll_interval: Duration,
     /// 販売開始のどれだけ前に準備を始めるか
     pub lead: Duration,
+    pub sites: SitesConfig,
+}
+
+/// アダプタごとの設定。アダプタを足したら、必要な項目をここに足す
+#[derive(Debug, Clone)]
+pub struct SitesConfig {
+    /// モックサイトの接続先（`MOCK_SITE_URL`）。Docker ではサービス名（`http://mock-site:...`）になる
+    pub mock_url: String,
 }
 
 impl Config {
@@ -19,12 +27,17 @@ impl Config {
         Self::from_lookup(|key| std::env::var(key).ok())
     }
 
-    fn from_lookup(get: impl Fn(&str) -> Option<String>) -> anyhow::Result<Self> {
+    pub(crate) fn from_lookup(get: impl Fn(&str) -> Option<String>) -> anyhow::Result<Self> {
         let url = get("DATABASE_URL").unwrap_or_else(|| "file:./data/zero-second.sqlite".into());
         Ok(Self {
             database_path: database_path(&url)?,
             poll_interval: Duration::from_millis(ms(&get, "STRIKER_POLL_INTERVAL_MS", 1_000)?),
             lead: Duration::from_millis(ms(&get, "STRIKER_LEAD_MS", 120_000)?),
+            sites: SitesConfig {
+                mock_url: get("MOCK_SITE_URL")
+                    .filter(|v| !v.trim().is_empty())
+                    .unwrap_or_else(|| "http://127.0.0.1:8788".into()),
+            },
         })
     }
 }

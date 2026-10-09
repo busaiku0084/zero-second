@@ -112,8 +112,20 @@ describe("/reservations", () => {
   });
 
   it("モックサイトでは auto を選べる", async () => {
-    const created = await createReservation({ site: "mock", mode: "auto" });
+    const created = await createReservation({
+      site: "mock",
+      eventUrl: "http://127.0.0.1:8788/events/ok",
+      mode: "auto",
+    });
     expect(created.mode).toBe("auto");
+  });
+
+  it("公演 URL を別サイトのものに変更できない", async () => {
+    const created = await createReservation({});
+    const res = await json("PATCH", `/reservations/${created.id}`, {
+      eventUrl: "https://livepocket.jp/e/abc",
+    });
+    expect(res.status).toBe(400);
   });
 
   it("別サイトのアカウントは紐づけられない", async () => {

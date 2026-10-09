@@ -1,7 +1,8 @@
 //! 検証用のモックサイト（apps/mock-site）で購入するアダプタ（ADR 0012）。
 //!
-//! 予約の公演 URL（`http://127.0.0.1:8788/events/{シナリオ}`）のオリジンへ、実際に HTTP で送る。
-//! 誤って外部のサイトへ送らないよう、ループバックのアドレス以外は拒否する。
+//! 送り先は設定の `MOCK_SITE_URL` だけ。予約の公演 URL（`http://127.0.0.1:8788/events/{シナリオ}`）からは
+//! シナリオだけを読み、ホストは使わない。誤って外部のサイトへ送らないよう、`MOCK_SITE_URL` は
+//! ループバックか、ドットを含まないホスト名（Docker のサービス名）に限る。
 
 use std::net::IpAddr;
 
@@ -13,49 +14,57 @@ use serde_json::json;
 use crate::model::{PurchaseOutcome, Reservation};
 use crate::site::{SiteContext, SiteError, TicketSite};
 
-pub struct MockSite;
-
-/// 公演 URL から取り出した送り先
-#[derive(Debug, PartialEq, Eq)]
-struct Target {
-    /// `http://127.0.0.1:8788`
+pub struct MockSite {
+    /// `http://127.0.0.1:8788` / Docker では `http://mock-site:...`（末尾の / なし）
     origin: String,
-    /// シナリオ（`ok` / `sold-out` など）
-    event_id: String,
 }
 
-fn target(event_url: &str) -> Result<Target, SiteError> {
+impl MockSite {
+    pub fn new(base_url: &str) -> anyhow::Result<Self> {
+        let url = Url::parse(base_url)
+            .map_err(|e| anyhow::anyhow!("MOCK_SITE_URL を読めません: {base_url}: {e}"))?;
+        let local = match url.host_str() {
+            Some(host) => match host
+                .trim_start_matches('[')
+                .trim_end_matches(']')
+                .parse::<IpAddr>()
+            {
+                Ok(ip) => ip.is_loopback(),
+                // localhost や Docker のサービス名（mock-site）。ドメイン名は外部とみなす
+                Err(_) => !host.contains('.'),
+            },
+            None => false,
+        };
+        if !local {
+            anyhow::bail!(
+                "MOCK_SITE_URL はループバックか Docker のサービス名にしてください: {base_url}"
+            );
+        }
+        Ok(Self {
+            origin: url.origin().ascii_serialization(),
+        })
+    }
+
+    fn url(&self, path: &str) -> String {
+        format!("{}{path}", self.origin)
+    }
+}
+
+/// 公演 URL（`.../events/{シナリオ}`）からシナリオを取り出す
+fn event_id(event_url: &str) -> Result<String, SiteError> {
     let url = Url::parse(event_url)
         .map_err(|e| anyhow::anyhow!("公演 URL を読めません: {event_url}: {e}"))?;
-    let loopback = match url.host_str() {
-        Some("localhost") => true,
-        Some(host) => host
-            .trim_start_matches('[')
-            .trim_end_matches(']')
-            .parse::<IpAddr>()
-            .is_ok_and(|ip| ip.is_loopback()),
-        None => false,
-    };
-    if !loopback {
-        return Err(anyhow::anyhow!(
-            "モックサイトの予約はローカルのアドレスにしか送りません: {event_url}"
-        )
-        .into());
-    }
     let segments: Vec<&str> = url
         .path_segments()
         .map(|s| s.filter(|s| !s.is_empty()).collect())
         .unwrap_or_default();
-    let ["events", event_id] = segments.as_slice() else {
+    let ["events", id] = segments.as_slice() else {
         return Err(anyhow::anyhow!(
             "公演 URL は /events/{{シナリオ}} の形にしてください: {event_url}"
         )
         .into());
     };
-    Ok(Target {
-        origin: url.origin().ascii_serialization(),
-        event_id: (*event_id).to_string(),
-    })
+    Ok((*id).to_string())
 }
 
 #[derive(Debug, Deserialize)]
@@ -112,18 +121,15 @@ impl TicketSite for MockSite {
         "mock"
     }
 
-    fn clock_probe_url(&self, reservation: &Reservation) -> Option<String> {
-        target(&reservation.event_url)
-            .ok()
-            .map(|t| format!("{}/", t.origin))
+    fn clock_probe_url(&self, _reservation: &Reservation) -> Option<String> {
+        Some(self.url("/"))
     }
 
     async fn login(&self, ctx: &mut SiteContext) -> Result<(), SiteError> {
-        let t = target(&ctx.reservation.event_url)?;
         let request = ctx
             .http
             .inner()
-            .post(format!("{}/api/login", t.origin))
+            .post(self.url("/api/login"))
             .json(&json!({}));
         let response = send(ctx, request).await?;
         expect_success(response, "ログイン").await?;
@@ -131,11 +137,8 @@ impl TicketSite for MockSite {
     }
 
     async fn prepare(&self, ctx: &mut SiteContext) -> Result<(), SiteError> {
-        let t = target(&ctx.reservation.event_url)?;
-        let request = ctx
-            .http
-            .inner()
-            .get(format!("{}/api/events/{}", t.origin, t.event_id));
+        let id = event_id(&ctx.reservation.event_url)?;
+        let request = ctx.http.inner().get(self.url(&format!("/api/events/{id}")));
         let response = send(ctx, request).await?;
         expect_success(response, "公演情報の取得").await?;
         Ok(())
@@ -146,7 +149,7 @@ impl TicketSite for MockSite {
         ctx: &mut SiteContext,
         _attempt: u32,
     ) -> Result<PurchaseOutcome, SiteError> {
-        let t = target(&ctx.reservation.event_url)?;
+        let id = event_id(&ctx.reservation.event_url)?;
         let body = json!({
             "ticketType": ctx.reservation.ticket_type,
             "quantity": ctx.reservation.quantity,
@@ -155,7 +158,7 @@ impl TicketSite for MockSite {
         let request = ctx
             .http
             .inner()
-            .post(format!("{}/api/events/{}/orders", t.origin, t.event_id))
+            .post(self.url(&format!("/api/events/{id}/orders")))
             .json(&body);
         let response = send(ctx, request).await?;
         let status = response.status();
@@ -180,33 +183,44 @@ mod tests {
     use super::*;
 
     #[test]
-    fn reads_origin_and_scenario() {
+    fn accepts_local_base_urls() {
+        for url in [
+            "http://127.0.0.1:47302",
+            "http://localhost:47302/",
+            "http://[::1]:47302",
+            "http://mock-site:47302",
+        ] {
+            assert!(MockSite::new(url).is_ok(), "{url}");
+        }
         assert_eq!(
-            target("http://127.0.0.1:8788/events/sold-out").unwrap(),
-            Target {
-                origin: "http://127.0.0.1:8788".into(),
-                event_id: "sold-out".into()
-            }
+            MockSite::new("http://mock-site:47302/")
+                .unwrap()
+                .url("/api/login"),
+            "http://mock-site:47302/api/login"
         );
-        assert!(target("http://localhost:9000/events/ok/").is_ok());
-        assert!(target("http://[::1]:8788/events/ok").is_ok());
     }
 
     #[test]
-    fn refuses_non_loopback_hosts() {
+    fn refuses_external_base_urls() {
         for url in [
-            "https://ticketdive.com/events/ok",
-            "http://192.168.0.10:8788/events/ok",
-            "http://127.0.0.1.example.com/events/ok",
+            "https://ticketdive.com",
+            "http://192.168.0.10:47302",
+            "http://127.0.0.1.example.com",
+            "not a url",
         ] {
-            assert!(target(url).is_err(), "{url}");
+            assert!(MockSite::new(url).is_err(), "{url}");
         }
     }
 
     #[test]
-    fn requires_event_path() {
-        assert!(target("http://127.0.0.1:8788/").is_err());
-        assert!(target("http://127.0.0.1:8788/foo/ok").is_err());
+    fn reads_scenario_from_event_url() {
+        assert_eq!(
+            event_id("http://127.0.0.1:47302/events/sold-out").unwrap(),
+            "sold-out"
+        );
+        assert_eq!(event_id("http://localhost/events/ok/").unwrap(), "ok");
+        assert!(event_id("http://127.0.0.1:47302/").is_err());
+        assert!(event_id("http://127.0.0.1:47302/foo/ok").is_err());
     }
 
     #[test]

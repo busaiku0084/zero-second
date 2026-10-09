@@ -9,27 +9,20 @@ use crate::config::Config;
 use crate::db::Db;
 use crate::executor;
 use crate::model::{ReservationStatus, RunFinish, RunResult};
-use crate::retry::RetryPolicy;
-use crate::site::TicketSite;
-use crate::sites;
-
-/// サイト id からアダプタを引く（テストで差し替える）
-type FindSite = fn(&str) -> Option<Arc<dyn TicketSite>>;
+use crate::sites::SiteRegistry;
 
 pub struct Scheduler {
     db: Arc<Db>,
     config: Config,
-    policy: RetryPolicy,
-    find_site: FindSite,
+    sites: Arc<SiteRegistry>,
 }
 
 impl Scheduler {
-    pub fn new(db: Arc<Db>, config: Config) -> Self {
+    pub fn new(db: Arc<Db>, config: Config, sites: SiteRegistry) -> Self {
         Self {
             db,
             config,
-            policy: RetryPolicy::default(),
-            find_site: sites::find,
+            sites: Arc::new(sites),
         }
     }
 
@@ -71,7 +64,7 @@ impl Scheduler {
             if !self.db.claim(reservation.id)? {
                 continue;
             }
-            let Some(site) = (self.find_site)(&reservation.site) else {
+            let Some(site) = self.sites.find(&reservation.site) else {
                 // 規約で自動化が禁止されたサイトなど、アダプタのない予約は動かさない（ADR 0005）
                 tracing::warn!(reservation_id = reservation.id, site = %reservation.site, "未対応のサイトです");
                 let run_id = self.db.create_run(reservation.id, now_ms())?;
@@ -95,7 +88,7 @@ impl Scheduler {
 
             tracing::info!(reservation_id = reservation.id, site = site.id(), title = %reservation.title, "準備を始めます");
             let db = Arc::clone(&self.db);
-            let policy = self.policy.clone();
+            let policy = site.retry_policy();
             tasks.spawn(async move {
                 let id = reservation.id;
                 let result = executor::execute(&db, site.as_ref(), reservation, &policy).await;
@@ -118,15 +111,19 @@ mod tests {
     use crate::db::testing::*;
     use crate::sites::fake::FakeSite;
 
+    /// "mock" に、HTTP を使わない FakeSite を登録したスケジューラ
     fn scheduler(db: Arc<Db>) -> Scheduler {
-        Scheduler::new(
-            db,
-            Config {
-                database_path: ":memory:".into(),
-                poll_interval: Duration::from_millis(10),
-                lead: Duration::from_secs(60),
-            },
-        )
+        let mut config = Config::from_lookup(|_| None).unwrap();
+        config.poll_interval = Duration::from_millis(10);
+        config.lead = Duration::from_secs(60);
+        let mut sites = SiteRegistry::default();
+        sites
+            .register(Arc::new(FakeSite {
+                id: "mock",
+                ..FakeSite::default()
+            }))
+            .unwrap();
+        Scheduler::new(db, config, sites)
     }
 
     #[tokio::test]
@@ -151,9 +148,7 @@ mod tests {
         let db = Arc::new(migrated_db());
         let id = insert_reservation(&db, "mock", "auto", now_ms() + 20);
         let mut tasks = JoinSet::new();
-        let mut scheduler = scheduler(Arc::clone(&db));
-        scheduler.find_site = |_| Some(Arc::new(FakeSite::default()));
-        scheduler.poll(&mut tasks).unwrap();
+        scheduler(Arc::clone(&db)).poll(&mut tasks).unwrap();
         assert_eq!(tasks.len(), 1);
         let result = tasks.join_next().await.unwrap().unwrap().unwrap();
         assert_eq!(result, RunResult::Succeeded);

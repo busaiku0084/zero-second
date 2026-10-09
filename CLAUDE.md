@@ -16,7 +16,7 @@ Web で予約を登録し、販売開始時刻に Rust のワーカー（striker
 - 再試行には回数と間隔の上限を設け、サイトに過剰なリクエストを送らない
 - ログイン情報・Cookie・トークン・HAR ファイルはコミットしない。ログやテストのフィクスチャにも実値を残さない
 
-サイトごとの対応状況は `docs/sites/README.md` にまとめ、`packages/shared/src/sites.ts` の `automation` と一致させる。
+サイトごとの対応状況は `docs/sites/README.md` にまとめ、`packages/shared/src/sites.json` の `automation` と一致させる。
 `automation: "manual"` のサイトでは自動購入（`mode: "auto"`）を選べないようにしている。この制限は外さない。
 
 ## アーキテクチャ

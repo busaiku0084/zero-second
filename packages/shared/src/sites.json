@@ -1,0 +1,23 @@
+[
+  {
+    "id": "ticketdive",
+    "name": "TicketDive",
+    "url": "https://ticketdive.com/",
+    "hosts": ["ticketdive.com"],
+    "automation": "manual"
+  },
+  {
+    "id": "livepocket",
+    "name": "LivePocket",
+    "url": "https://livepocket.jp/",
+    "hosts": ["livepocket.jp"],
+    "automation": "manual"
+  },
+  {
+    "id": "mock",
+    "name": "モックサイト（検証用）",
+    "url": "http://127.0.0.1:8788/",
+    "hosts": ["127.0.0.1", "localhost"],
+    "automation": "auto"
+  }
+]

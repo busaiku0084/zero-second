@@ -19,7 +19,7 @@ SQLite（WAL モード）。API とワーカーが同じファイルを使う（
 
 | 列 | 内容 |
 |---|---|
-| `site` | サイト ID（`packages/shared/src/sites.ts`） |
+| `site` | サイト ID（`packages/shared/src/sites.json`） |
 | `login_id` | ログイン ID。`(site, login_id)` で一意 |
 | `encrypted_credentials` | AES-256-GCM で暗号化したパスワード（[ADR 0008](adr/0008-credential-encryption.md)） |
 

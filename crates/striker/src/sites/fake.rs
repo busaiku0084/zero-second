@@ -18,15 +18,25 @@ pub enum FakeBehavior {
     FailTimes(u32),
 }
 
-#[derive(Default)]
 pub struct FakeSite {
+    /// 登録するサイト id（スケジューラのテストでは "mock" として登録する）
+    pub id: &'static str,
     pub behavior: FakeBehavior,
+}
+
+impl Default for FakeSite {
+    fn default() -> Self {
+        Self {
+            id: "fake",
+            behavior: FakeBehavior::default(),
+        }
+    }
 }
 
 #[async_trait]
 impl TicketSite for FakeSite {
     fn id(&self) -> &'static str {
-        "fake"
+        self.id
     }
 
     async fn login(&self, _ctx: &mut SiteContext) -> Result<(), SiteError> {
