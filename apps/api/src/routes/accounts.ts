@@ -10,23 +10,33 @@ const COLUMNS = "id, site, login_id, created_at_ms, updated_at_ms";
 
 export const accounts = new Hono<AppEnv>()
   .get("/", (c) => {
-    const rows = c.var.db.prepare(`SELECT ${COLUMNS} FROM accounts ORDER BY site, login_id`).all();
+    const rows = c.var.db
+      .prepare(`SELECT ${COLUMNS} FROM accounts WHERE user_id = ? ORDER BY site, login_id`)
+      .all(c.var.user.id);
     return c.json(rows.map((r) => toAccount(r as Row)));
   })
   .post("/", zValidator("json", accountCreateSchema, validationHook), (c) => {
     const body = c.req.valid("json");
     const now = Date.now();
     const exists = c.var.db
-      .prepare("SELECT 1 FROM accounts WHERE site = ? AND login_id = ?")
-      .get(body.site, body.loginId);
+      .prepare("SELECT 1 FROM accounts WHERE user_id = ? AND site = ? AND login_id = ?")
+      .get(c.var.user.id, body.site, body.loginId);
     if (exists) return c.json({ error: "同じサイト・ログインIDのアカウントが既にあります" }, 409);
 
     const row = c.var.db
       .prepare(
-        `INSERT INTO accounts (site, login_id, encrypted_credentials, created_at_ms, updated_at_ms)
-         VALUES (?, ?, ?, ?, ?) RETURNING ${COLUMNS}`,
+        `INSERT INTO accounts (
+           user_id, site, login_id, encrypted_credentials, created_at_ms, updated_at_ms
+         ) VALUES (?, ?, ?, ?, ?, ?) RETURNING ${COLUMNS}`,
       )
-      .get(body.site, body.loginId, encrypt(c.var.encryptionKey, body.password), now, now);
+      .get(
+        c.var.user.id,
+        body.site,
+        body.loginId,
+        encrypt(c.var.encryptionKey, body.password),
+        now,
+        now,
+      );
     return c.json(toAccount(row as Row), 201);
   })
   .patch(
@@ -50,15 +60,19 @@ export const accounts = new Hono<AppEnv>()
       values.push(Date.now());
 
       const row = c.var.db
-        .prepare(`UPDATE accounts SET ${sets.join(", ")} WHERE id = ? RETURNING ${COLUMNS}`)
-        .get(...values, id);
+        .prepare(
+          `UPDATE accounts SET ${sets.join(", ")} WHERE id = ? AND user_id = ? RETURNING ${COLUMNS}`,
+        )
+        .get(...values, id, c.var.user.id);
       if (!row) return c.json({ error: "アカウントが見つかりません" }, 404);
       return c.json(toAccount(row as Row));
     },
   )
   .delete("/:id", zValidator("param", idParam, validationHook), (c) => {
     const { id } = c.req.valid("param");
-    const res = c.var.db.prepare("DELETE FROM accounts WHERE id = ?").run(id);
+    const res = c.var.db
+      .prepare("DELETE FROM accounts WHERE id = ? AND user_id = ?")
+      .run(id, c.var.user.id);
     if (res.changes === 0) return c.json({ error: "アカウントが見つかりません" }, 404);
     return c.body(null, 204);
   });

@@ -10,6 +10,9 @@ try {
 
 const nextConfig: NextConfig = {
   transpilePackages: ["@zero-second/shared"],
+  // Docker の開発環境では next dev が 0.0.0.0 で待ち受けるため、127.0.0.1 からの HMR が
+  // 別オリジン扱いでブロックされ、画面が動かなくなる（クライアントの処理が始まらない）。ホストからの分だけ許可する
+  allowedDevOrigins: ["127.0.0.1", "localhost"],
 };
 
 export default nextConfig;

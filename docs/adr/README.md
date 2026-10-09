@@ -37,3 +37,4 @@
 | [0013](0013-clock-sync-bisection-and-server-time-elapsed.md) | 時刻合わせは秒の切り替わりを二分探索し、所要時間はサーバーの時計で測る | 採用 |
 | [0014](0014-site-registry.md) | サイトの定義を sites.json に集め、アダプタは SiteRegistry に登録する | 採用 |
 | [0015](0015-docker-and-port-range.md) | Docker で動かし、ポートは 127.0.0.1 の 47300〜47302 に固定する | 採用 |
+| [0016](0016-login-and-per-user-data.md) | ID とパスワードでログインし、データはユーザーごとに分ける | 採用 |

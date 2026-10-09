@@ -9,11 +9,14 @@ const ITEMS = [
   { href: "/accounts", label: "アカウント" },
 ];
 
-export function Nav() {
+const ADMIN_ITEMS = [{ href: "/users", label: "ユーザー" }];
+
+export function Nav({ isAdmin }: { isAdmin: boolean }) {
   const pathname = usePathname();
+  const items = isAdmin ? [...ITEMS, ...ADMIN_ITEMS] : ITEMS;
   return (
     <nav className="nav" aria-label="メイン">
-      {ITEMS.map((item) => {
+      {items.map((item) => {
         const active = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
         return (
           <Link key={item.href} href={item.href} aria-current={active ? "page" : undefined}>

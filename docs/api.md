@@ -4,6 +4,8 @@
 
 - リクエスト・レスポンスは JSON。時刻は UNIX ミリ秒（[ADR 0007](adr/0007-time-representation.md)）
 - `API_TOKEN` を設定すると、`/health` 以外に `Authorization: Bearer <token>` が必要になる
+- **ログインが必要**。公開のルート（下の「ログイン」で「不要」と書いたもの）以外は、`x-session-token: <セッションのトークン>` が必要（[ADR 0016](adr/0016-login-and-per-user-data.md)）
+- データはユーザーごとに分かれている。ほかのユーザーの予約・アカウント・結果は 404 になる
 - 入力の型は `packages/shared/src/schemas.ts`、レスポンスの型は `packages/shared/src/types.ts` が正
 
 ## エラーの形
@@ -15,9 +17,11 @@
 | ステータス | 意味 |
 |---|---|
 | 400 | 入力の誤り（`issues` に項目ごとの理由） |
-| 401 | トークンがない・違う |
+| 401 | ログインしていない・セッションが無効、ログイン ID かパスワードが違う、`API_TOKEN` が違う |
+| 403 | 管理者だけが使えるルート |
 | 404 | 対象が見つからない |
-| 409 | 状態の衝突（重複したアカウント、実行中の予約の変更など） |
+| 409 | 状態の衝突（重複したアカウント、実行中の予約の変更、使われているログイン ID など） |
+| 429 | ログインの失敗が続いた（15 分に 5 回まで） |
 | 500 | 想定外のエラー（API のログを見る） |
 
 ## エンドポイント
@@ -28,7 +32,36 @@
 ### `GET /sites`
 対応サイトの一覧。`automation` が `"manual"` のサイトは購入補助のみ（[ADR 0005](adr/0005-respect-site-terms.md)）。
 
+### ログイン
+
+| メソッド | パス | ログイン | 内容 |
+|---|---|---|---|
+| POST | `/auth/login` | 不要 | `{ loginId, password }` → `{ token, expiresAtMs, user }` |
+| GET | `/auth/setup` | 不要 | `{ required }`。ユーザーが 0 人なら true |
+| POST | `/auth/setup` | 不要 | 最初のユーザー（管理者）を作る。`{ loginId, password }` → 201 `{ token, expiresAtMs, user }`。ユーザーがいれば 409 |
+| GET | `/auth/invitations/:token` | 不要 | `{ valid }`。未使用で期限内なら true |
+| POST | `/auth/invitations/:token` | 不要 | 招待からユーザーを作る。`{ loginId, password }` → 201。無効なリンクは 404、使われている ID は 409 |
+| GET | `/auth/me` | 必要 | ログイン中のユーザー |
+| POST | `/auth/logout` | 必要 | 今のセッションを消す → 204 |
+| PUT | `/auth/password` | 必要 | `{ currentPassword, newPassword }` → 204。ほかのセッションは消える |
+
+- ログイン ID は半角英数字と `_ . -` で 3〜32 文字（大文字・小文字は区別しない）。パスワードは 10 文字以上
+- セッションの有効期限は 30 日
+
+### 管理者
+
+管理者（`role: "admin"`）だけが使える。ほかの人は 403。ほかのユーザーの予約などの中身を見るルートはない。
+
+| メソッド | パス | 内容 |
+|---|---|---|
+| GET | `/users` | ユーザーの一覧 |
+| GET | `/invitations` | 招待の一覧（トークンは含まない） |
+| POST | `/invitations` | 招待を作る。`{ note? }` → 201。`token` はこのときだけ返る。7 日間有効 |
+| DELETE | `/invitations/:id` | 未使用の招待を取り消す → 204 |
+
 ### アカウント
+
+ログイン中のユーザーのものだけを扱う。
 
 | メソッド | パス | 内容 |
 |---|---|---|

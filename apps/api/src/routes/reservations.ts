@@ -27,28 +27,31 @@ const RESULT_TO_STATUS: Record<RunResult, ReservationStatus> = {
   needs_human: "needs_human",
 };
 
-function getReservation(db: Db, id: number) {
-  const row = db.prepare("SELECT * FROM reservations WHERE id = ?").get(id);
+/** ほかのユーザーの予約は「見つからない」として扱う */
+function getReservation(db: Db, userId: number, id: number) {
+  const row = db.prepare("SELECT * FROM reservations WHERE id = ? AND user_id = ?").get(id, userId);
   return row ? toReservation(row as Row) : null;
 }
 
-/** アカウントが存在し、予約と同じサイトのものかを確認する */
-function accountMatchesSite(db: Db, accountId: number, site: string): boolean {
+/** アカウントが本人のもので、予約と同じサイトのものかを確認する */
+function accountMatchesSite(db: Db, userId: number, accountId: number, site: string): boolean {
   return Boolean(
-    db.prepare("SELECT 1 FROM accounts WHERE id = ? AND site = ?").get(accountId, site),
+    db
+      .prepare("SELECT 1 FROM accounts WHERE id = ? AND user_id = ? AND site = ?")
+      .get(accountId, userId, site),
   );
 }
 
 export const reservations = new Hono<AppEnv>()
   .get("/", (c) => {
     const rows = c.var.db
-      .prepare("SELECT * FROM reservations ORDER BY sale_starts_at_ms DESC")
-      .all();
+      .prepare("SELECT * FROM reservations WHERE user_id = ? ORDER BY sale_starts_at_ms DESC")
+      .all(c.var.user.id);
     return c.json(rows.map((r) => toReservation(r as Row)));
   })
   .get("/:id", zValidator("param", idParam, validationHook), (c) => {
     const { id } = c.req.valid("param");
-    const reservation = getReservation(c.var.db, id);
+    const reservation = getReservation(c.var.db, c.var.user.id, id);
     if (!reservation) return c.json({ error: "予約が見つかりません" }, 404);
     const runs = c.var.db
       .prepare(
@@ -61,18 +64,22 @@ export const reservations = new Hono<AppEnv>()
   })
   .post("/", zValidator("json", reservationCreateSchema, validationHook), (c) => {
     const body = c.req.valid("json");
-    if (body.accountId !== null && !accountMatchesSite(c.var.db, body.accountId, body.site)) {
+    if (
+      body.accountId !== null &&
+      !accountMatchesSite(c.var.db, c.var.user.id, body.accountId, body.site)
+    ) {
       return c.json({ error: "このサイトのアカウントではありません" }, 400);
     }
     const now = Date.now();
     const row = c.var.db
       .prepare(
         `INSERT INTO reservations (
-           account_id, site, title, event_url, ticket_type, quantity, payment_method,
+           user_id, account_id, site, title, event_url, ticket_type, quantity, payment_method,
            sale_starts_at_ms, mode, notes, status, created_at_ms, updated_at_ms
-         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?) RETURNING *`,
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?) RETURNING *`,
       )
       .get(
+        c.var.user.id,
         body.accountId,
         body.site,
         body.title,
@@ -95,7 +102,7 @@ export const reservations = new Hono<AppEnv>()
     (c) => {
       const { id } = c.req.valid("param");
       const body = c.req.valid("json");
-      const current = getReservation(c.var.db, id);
+      const current = getReservation(c.var.db, c.var.user.id, id);
       if (!current) return c.json({ error: "予約が見つかりません" }, 404);
       if (LOCKED_STATUSES.includes(current.status)) {
         return c.json({ error: "実行中の予約は変更できません" }, 409);
@@ -110,7 +117,7 @@ export const reservations = new Hono<AppEnv>()
       if (
         body.accountId !== undefined &&
         body.accountId !== null &&
-        !accountMatchesSite(c.var.db, body.accountId, current.site)
+        !accountMatchesSite(c.var.db, c.var.user.id, body.accountId, current.site)
       ) {
         return c.json({ error: "このサイトのアカウントではありません" }, 400);
       }
@@ -146,7 +153,7 @@ export const reservations = new Hono<AppEnv>()
   )
   .delete("/:id", zValidator("param", idParam, validationHook), (c) => {
     const { id } = c.req.valid("param");
-    const current = getReservation(c.var.db, id);
+    const current = getReservation(c.var.db, c.var.user.id, id);
     if (!current) return c.json({ error: "予約が見つかりません" }, 404);
     if (LOCKED_STATUSES.includes(current.status)) {
       return c.json({ error: "実行中の予約は削除できません" }, 409);
@@ -174,7 +181,7 @@ export const reservations = new Hono<AppEnv>()
     (c) => {
       const { id } = c.req.valid("param");
       const body = c.req.valid("json");
-      const reservation = getReservation(c.var.db, id);
+      const reservation = getReservation(c.var.db, c.var.user.id, id);
       if (!reservation) return c.json({ error: "予約が見つかりません" }, 404);
       if (reservation.mode !== "manual") {
         return c.json({ error: "自動購入の予約には手動の記録を追加できません" }, 409);

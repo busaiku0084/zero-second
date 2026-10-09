@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import { DM_Mono, IBM_Plex_Sans_JP, Zen_Kaku_Gothic_New } from "next/font/google";
 import Link from "next/link";
-import type { ReactNode } from "react";
-import { Nav } from "@/components/Nav";
+import { type ReactNode, Suspense } from "react";
+import { SessionNav } from "@/components/SessionNav";
 import "./globals.css";
 
 const zenKaku = Zen_Kaku_Gothic_New({
@@ -43,7 +43,10 @@ export default function RootLayout({ children }: { children: ReactNode }) {
               <span>zero</span>
               <span className="wordmark-tick">+00:00.000</span>
             </Link>
-            <Nav />
+            {/* セッションの確認を待たずに本文を流せるよう、Suspense で分ける */}
+            <Suspense fallback={null}>
+              <SessionNav />
+            </Suspense>
           </div>
         </header>
         <main className="page">{children}</main>

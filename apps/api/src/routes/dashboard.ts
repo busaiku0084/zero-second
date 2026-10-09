@@ -42,10 +42,10 @@ export const dashboard = new Hono<AppEnv>().get(
                 runs.clock_offset_ms,
                 reservations.title, reservations.sale_starts_at_ms
          FROM runs JOIN reservations ON reservations.id = runs.reservation_id
-         WHERE runs.started_at_ms >= ? AND runs.result IS NOT NULL
+         WHERE reservations.user_id = ? AND runs.started_at_ms >= ? AND runs.result IS NOT NULL
          ORDER BY runs.started_at_ms`,
       )
-      .all(since) as Row[];
+      .all(c.var.user.id, since) as Row[];
 
     const resultCounts = Object.fromEntries(RUN_RESULTS.map((r) => [r, 0])) as Record<
       RunResult,
@@ -73,10 +73,11 @@ export const dashboard = new Hono<AppEnv>().get(
 
     const next = c.var.db
       .prepare(
-        `SELECT * FROM reservations WHERE status = 'pending' AND sale_starts_at_ms >= ?
+        `SELECT * FROM reservations
+         WHERE user_id = ? AND status = 'pending' AND sale_starts_at_ms >= ?
          ORDER BY sale_starts_at_ms LIMIT 1`,
       )
-      .get(now);
+      .get(c.var.user.id, now);
 
     const summary: DashboardSummary = {
       range,

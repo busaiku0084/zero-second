@@ -9,50 +9,16 @@ import {
 } from "@zero-second/shared";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import type { z } from "zod";
-import { ApiError, ApiUnavailableError, api } from "@/lib/api";
+import { api } from "@/lib/api";
+import {
+  blankToUndefined,
+  type FormState,
+  failure,
+  formValues,
+  withoutPasswords,
+  zodErrors,
+} from "@/lib/form";
 import { fromJstInput } from "@/lib/format";
-
-export type FormState = {
-  message?: string;
-  fieldErrors?: Record<string, string>;
-  /** 送信した値。エラー時にフォームへ戻す */
-  values?: Record<string, string>;
-  ok?: boolean;
-};
-
-function formValues(formData: FormData): Record<string, string> {
-  const values: Record<string, string> = {};
-  for (const [k, v] of formData.entries()) {
-    if (typeof v === "string" && !k.startsWith("$")) values[k] = v;
-  }
-  return values;
-}
-
-function zodErrors(error: z.ZodError): Record<string, string> {
-  const out: Record<string, string> = {};
-  for (const issue of error.issues) {
-    const key = issue.path.map(String).join(".") || "_";
-    out[key] ??= issue.message;
-  }
-  return out;
-}
-
-function failure(e: unknown, values: Record<string, string>): FormState {
-  if (e instanceof ApiError) {
-    const fieldErrors: Record<string, string> = {};
-    for (const i of e.issues) fieldErrors[i.path] ??= i.message;
-    return { message: e.message, fieldErrors, values };
-  }
-  if (e instanceof ApiUnavailableError) {
-    return { message: `${e.message}。make dev-api で起動してください`, values };
-  }
-  throw e;
-}
-
-/** 空文字は未入力として扱う */
-const blankToUndefined = (v: string | undefined) =>
-  v === undefined || v.trim() === "" ? undefined : v;
 
 // ---------- reservations ----------
 
@@ -158,7 +124,7 @@ export async function createAccount(_prev: FormState, formData: FormData): Promi
     password: values.password,
   });
   // パスワードはフォームに戻さない
-  const { password: _password, ...safeValues } = values;
+  const safeValues = withoutPasswords(values);
   if (!parsed.success) {
     return {
       message: "入力内容を確認してください",

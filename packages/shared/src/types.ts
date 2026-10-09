@@ -1,4 +1,10 @@
-import type { PaymentMethod, ReservationMode, ReservationStatus, RunResult } from "./schemas";
+import type {
+  PaymentMethod,
+  ReservationMode,
+  ReservationStatus,
+  RunResult,
+  UserRole,
+} from "./schemas";
 import type { SiteId } from "./sites";
 
 /** API のレスポンス型。ログイン情報は返さない。 */
@@ -76,3 +82,30 @@ export type DashboardSummary = {
   }>;
   nextReservation: Reservation | null;
 };
+
+export type User = {
+  id: number;
+  loginId: string;
+  role: UserRole;
+  createdAtMs: number;
+};
+
+/** ログイン・セットアップ・招待の受け入れが成功したときのレスポンス */
+export type SessionResponse = {
+  /** セッションのトークン。web が HttpOnly の Cookie に入れる */
+  token: string;
+  expiresAtMs: number;
+  user: User;
+};
+
+export type Invitation = {
+  id: number;
+  note: string;
+  createdAtMs: number;
+  expiresAtMs: number;
+  acceptedByLoginId: string | null;
+  acceptedAtMs: number | null;
+};
+
+/** 招待を作ったときだけ返す。トークンは DB にハッシュしか残らないので、このとき以外は取り出せない */
+export type InvitationCreated = Invitation & { token: string };

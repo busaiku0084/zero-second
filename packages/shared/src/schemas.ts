@@ -108,3 +108,44 @@ export type DashboardRange = (typeof DASHBOARD_RANGES)[number];
 export const dashboardQuerySchema = z.object({
   range: z.enum(DASHBOARD_RANGES).default("30d"),
 });
+
+// ---- users・ログイン（ADR 0016） ----
+
+export const USER_ROLES = ["admin", "member"] as const;
+export type UserRole = (typeof USER_ROLES)[number];
+
+export const PASSWORD_MIN_LENGTH = 10;
+
+const userLoginId = z
+  .string()
+  .trim()
+  .min(3)
+  .max(32)
+  .regex(/^[A-Za-z0-9_.-]+$/, "半角英数字と _ . - だけが使えます");
+
+const newPassword = z.string().min(PASSWORD_MIN_LENGTH).max(128);
+
+export const loginSchema = z.object({
+  loginId: z.string().trim().min(1).max(32),
+  password: z.string().min(1).max(128),
+});
+
+/** 初回セットアップ・招待の受け入れで、ユーザーを作るときの入力 */
+export const signupSchema = z.object({
+  loginId: userLoginId,
+  password: newPassword,
+});
+
+export const passwordChangeSchema = z.object({
+  currentPassword: z.string().min(1).max(128),
+  newPassword,
+});
+
+export const invitationCreateSchema = z.object({
+  note: z.string().trim().max(100).default(""),
+});
+
+export type Login = z.infer<typeof loginSchema>;
+export type Signup = z.infer<typeof signupSchema>;
+export type PasswordChange = z.infer<typeof passwordChangeSchema>;
+export type InvitationCreate = z.input<typeof invitationCreateSchema>;
