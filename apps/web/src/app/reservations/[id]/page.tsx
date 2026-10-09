@@ -56,16 +56,23 @@ export default async function ReservationPage({ params }: PageProps<"/reservatio
             <span className="tag">{MODE_LABELS[r.mode]}</span>
           </div>
         </div>
-        <a className="button button-primary" href={r.eventUrl} target="_blank" rel="noreferrer">
-          公演ページを開く
-        </a>
+        <div className="button-row">
+          {r.status === "pending" || r.status === "preparing" ? (
+            <Link className="button button-primary" href={`/reservations/${r.id}/launch`}>
+              ランチャーを開く
+            </Link>
+          ) : null}
+          <a className="button" href={r.eventUrl} target="_blank" rel="noreferrer">
+            公演ページを開く
+          </a>
+        </div>
       </div>
 
       <div className="detail-grid">
         <div className="stack">
           <section className="panel next" aria-label="販売開始">
             <span className="eyebrow">販売開始まで</span>
-            <Countdown targetMs={r.saleStartsAtMs} />
+            <Countdown targetMs={r.saleStartsAtMs} showClock />
             <span className="mono muted">{formatDateTime(r.saleStartsAtMs)}</span>
           </section>
 

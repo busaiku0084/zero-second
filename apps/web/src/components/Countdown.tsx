@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { describeOffset } from "@/lib/clock";
 import { formatElapsed } from "@/lib/format";
+import { useServerClock } from "./useServerClock";
 
 /** 残り時間を「T−2日 03:12:45.6」の形にする */
 function formatRemaining(ms: number): string {
@@ -16,36 +18,64 @@ function formatRemaining(ms: number): string {
 }
 
 /**
- * 販売開始までのカウントダウン。端末の時計を使う。
- * TODO(#12): 時刻サーバーで端末の時計のずれを測って補正する
+ * 販売開始までの残りミリ秒（負なら販売開始からの経過）。
+ * サーバーの時計とのずれを測って補正する（ADR 0018）。描画の前は null
  */
-export function Countdown({ targetMs }: { targetMs: number }) {
-  const [now, setNow] = useState<number | null>(null);
+export function useRemaining(targetMs: number) {
+  const clock = useServerClock();
+  const [deviceNow, setDeviceNow] = useState<number | null>(null);
 
   useEffect(() => {
-    setNow(Date.now());
-    const id = window.setInterval(() => setNow(Date.now()), 100);
+    setDeviceNow(Date.now());
+    const id = window.setInterval(() => setDeviceNow(Date.now()), 100);
     return () => window.clearInterval(id);
   }, []);
 
-  if (now === null) {
-    return (
-      <p className="countdown" aria-hidden="true">
+  const remaining = deviceNow === null ? null : targetMs - (deviceNow + (clock?.offsetMs ?? 0));
+  return { remaining, clock };
+}
+
+export function Countdown({
+  targetMs,
+  showClock = false,
+  large = false,
+}: {
+  targetMs: number;
+  /** 時計のずれの測定結果を下に出す */
+  showClock?: boolean;
+  large?: boolean;
+}) {
+  const { remaining, clock } = useRemaining(targetMs);
+  const cls = `countdown${large ? " countdown-large" : ""}`;
+
+  let display: React.ReactNode;
+  if (remaining === null) {
+    display = (
+      <p className={cls} aria-hidden="true">
         T−··:··:··.·
       </p>
     );
-  }
-  const remaining = targetMs - now;
-  if (remaining > 0) {
-    return (
-      <p className="countdown" role="timer" aria-live="off">
+  } else if (remaining > 0) {
+    display = (
+      <p className={cls} role="timer" aria-live="off">
         {formatRemaining(remaining)}
       </p>
     );
+  } else {
+    display = (
+      <p className={`${cls} countdown-live`} role="timer" aria-live="off">
+        販売中 {formatElapsed(-remaining)}
+      </p>
+    );
   }
+
+  if (!showClock) return display;
   return (
-    <p className="countdown countdown-live" role="timer" aria-live="off">
-      販売中 {formatElapsed(-remaining)}
-    </p>
+    <div className="countdown-wrap">
+      {display}
+      <p className="clock-note">
+        {clock ? describeOffset(clock) : "サーバーの時計とのずれを測っています…"}
+      </p>
+    </div>
   );
 }
