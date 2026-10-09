@@ -11,7 +11,7 @@
 
 ## 決定
 
-- **サイトごとに操作の方法を選ぶ**。`TicketSite::driver()` が `Driver::Http`（既定。API を叩く）か `Driver::Browser`（画面を操作する）を返す。API が使えるなら Http を選ぶ（速い）
+- **サイトごとに操作の方法を選ぶ**。`TicketSite::driver()` が `Driver::Http`（既定。API を叩く）か `Driver::Browser`（画面を操作する）を返す。API が使えるなら Http を選ぶ（速い）。→ [ADR 0022](0022-switchable-drivers-per-adapter.md) で、1 つのアダプタが両方を持てる `drivers()` に変えた
 - ブラウザ操作は **ヘッドレス Chrome を CDP で操作する**（`chromiumoxide`。tokio で動き、Rust のワーカーの中で完結する）。`crates/striker/src/browser.rs` の `BrowserSession` が goto / click / fill / wait_for / wait_for_any / text を持ち、**操作ごとの所要時間を timings に残す**（method は GOTO / CLICK / TYPE / WAIT。入力した値は残さない）
 - 待ち時間はすべて上限つき（要素は既定 10 秒、ページの移動は 15 秒）。CAPTCHA などは今までどおり `SiteError::HumanActionRequired` で止める
 - 実行ごとに**空のプロファイル**で Chrome を起動し、終わったら消す。利用者の普段の Chrome には触れない。Docker では Chromium をワーカーのイメージに入れ、サンドボックスを外して動かす（開くのはローカルの検証用サイトだけ）
