@@ -3,6 +3,7 @@
 import {
   type Account,
   DEFAULT_REMINDER_MINUTES,
+  type EventInfo,
   MOCK_SCENARIOS,
   type MockScenarioId,
   mockEventUrl,
@@ -11,9 +12,10 @@ import {
   SAUCE_DEMO_USERS,
   type Site,
   sauceDemoProductUrl,
+  supportsEventInfo,
 } from "@zero-second/shared";
-import { useActionState, useState } from "react";
-import { createReservation } from "@/app/actions";
+import { useActionState, useEffect, useState } from "react";
+import { createReservation, lookupEventInfo } from "@/app/actions";
 import type { FormState } from "@/lib/form";
 import { toJstInput } from "@/lib/format";
 import { reminderLabel } from "@/lib/labels";
@@ -35,11 +37,18 @@ export function ReservationForm({
   const [siteId, setSiteId] = useState(v.site ?? sites[0]?.id ?? "");
   const site = sites.find((s) => s.id === siteId);
   const autoAllowed = site?.automation === "auto";
+  /** 公演 URL から公演名・席種・枚数の上限を自動で入れられるサイトか（#43） */
+  const autoFill = site !== undefined && supportsEventInfo(site);
   const siteAccounts = accounts.filter((a) => a.site === siteId);
   const [title, setTitle] = useState(v.title ?? "");
   const [eventUrl, setEventUrl] = useState(v.eventUrl ?? "");
   const [ticketType, setTicketType] = useState(v.ticketType ?? "");
   const [quantity, setQuantity] = useState(v.quantity ?? "1");
+  const [mode, setMode] = useState(v.mode ?? (autoAllowed ? "auto" : "manual"));
+  const [info, setInfo] = useState<EventInfo | null>(null);
+  const [lookup, setLookup] = useState<{ state: "idle" | "loading" | "done" } | { error: string }>({
+    state: "idle",
+  });
   const [saleStartsAt, setSaleStartsAt] = useState(v.saleStartsAt ?? defaultSaleStartsAt);
   const scenario = MOCK_SCENARIOS.find((s) => mockEventUrl(s.id) === eventUrl);
   const reminders =
@@ -52,31 +61,52 @@ export function ReservationForm({
   const product = SAUCE_DEMO_PRODUCTS.find((p) => sauceDemoProductUrl(p.id) === eventUrl);
 
   /**
-   * サイトを切り替えたら、サイトごとの項目（公演名・URL・席種・枚数）を初期値に戻す。
-   * アカウントと購入のしかたは、下の key={siteId} で初期値に戻る
+   * 公演 URL が変わったら、公演情報を読んで公演名・席種・枚数を入れる（#43）。
+   * 打ち終わるのを少し待ってから読み、古い応答は捨てる
    */
+  useEffect(() => {
+    if (!autoFill || !isUrl(eventUrl)) {
+      setInfo(null);
+      setLookup({ state: "idle" });
+      // 前の URL から入れた公演名を残さない
+      if (autoFill) setTitle("");
+      return;
+    }
+    let current = true;
+    setLookup({ state: "loading" });
+    const timer = setTimeout(async () => {
+      const result = await lookupEventInfo(siteId, eventUrl);
+      if (!current) return;
+      if (!result.ok) {
+        setInfo(null);
+        setLookup({ error: result.message });
+        setTitle("");
+        return;
+      }
+      const found = result.info;
+      setInfo(found);
+      setLookup({ state: "done" });
+      setTitle(found.title);
+      setTicketType((t) => (found.ticketTypes.includes(t) ? t : (found.ticketTypes[0] ?? "")));
+      setQuantity((q) => String(Math.min(Number(q) || 1, found.maxQuantity)));
+    }, 400);
+    return () => {
+      current = false;
+      clearTimeout(timer);
+    };
+  }, [autoFill, siteId, eventUrl]);
+
+  /** サイトを切り替えたら、サイトごとの項目（公演名・URL・席種・枚数・購入のしかた）を初期値に戻す */
   function selectSite(id: string) {
+    const next = sites.find((s) => s.id === id);
     setSiteId(id);
     setTitle("");
     setEventUrl("");
     setTicketType("");
     setQuantity("1");
-    if (id === "mock") selectScenario("ok");
-    if (id === "saucedemo") selectProduct(4);
-  }
-
-  /** Sauce Demo の商品を選ぶと、公演 URL と公演名を埋める（ADR 0021） */
-  function selectProduct(id: number) {
-    setEventUrl(sauceDemoProductUrl(id));
-    const name = SAUCE_DEMO_PRODUCTS.find((p) => p.id === id)?.name ?? "";
-    setTitle(`Sauce Demo「${name}」`);
-  }
-
-  /** モックサイトのシナリオを選ぶと、公演 URL と公演名を埋める */
-  function selectScenario(id: MockScenarioId) {
-    setEventUrl(mockEventUrl(id));
-    const name = MOCK_SCENARIOS.find((s) => s.id === id)?.name;
-    setTitle(`モック公演「${name}」`);
+    setMode(next?.automation === "auto" ? "auto" : "manual");
+    if (id === "mock") setEventUrl(mockEventUrl("ok"));
+    if (id === "saucedemo") setEventUrl(sauceDemoProductUrl(4));
   }
 
   return (
@@ -115,7 +145,7 @@ export function ReservationForm({
                   name="sauceDemoProduct"
                   value={p.id}
                   checked={product?.id === p.id}
-                  onChange={() => selectProduct(p.id)}
+                  onChange={() => setEventUrl(sauceDemoProductUrl(p.id))}
                 />
                 <span className="choice-title">{p.name}</span>
                 <span className="choice-sub">
@@ -143,7 +173,7 @@ export function ReservationForm({
                   name="mockScenario"
                   value={s.id}
                   checked={scenario?.id === s.id}
-                  onChange={() => selectScenario(s.id)}
+                  onChange={() => setEventUrl(mockEventUrl(s.id as MockScenarioId))}
                 />
                 <span className="choice-title">{s.name}</span>
                 <span className="choice-sub">{s.description}</span>
@@ -154,17 +184,13 @@ export function ReservationForm({
       ) : null}
 
       <div className="form-grid">
-        <Field id="title" label="公演名" error={e.title} wide>
-          <input
-            id="title"
-            name="title"
-            value={title}
-            onChange={(ev) => setTitle(ev.target.value)}
-            required
-            aria-invalid={Boolean(e.title)}
-          />
-        </Field>
-        <Field id="eventUrl" label="公演ページの URL" error={e.eventUrl} wide>
+        <Field
+          id="eventUrl"
+          label="公演ページの URL"
+          error={e.eventUrl ?? ("error" in lookup ? lookup.error : undefined)}
+          hint={eventUrlHint(autoFill, lookup, info)}
+          wide
+        >
           <input
             id="eventUrl"
             name="eventUrl"
@@ -175,6 +201,23 @@ export function ReservationForm({
             onChange={(ev) => setEventUrl(ev.target.value)}
             required
             aria-invalid={Boolean(e.eventUrl)}
+          />
+        </Field>
+        <Field
+          id="title"
+          label="公演名"
+          error={e.title}
+          hint={info ? "公演 URL から自動で入りました" : undefined}
+          wide
+        >
+          <input
+            id="title"
+            name="title"
+            value={title}
+            onChange={(ev) => setTitle(ev.target.value)}
+            readOnly={info !== null}
+            required
+            aria-invalid={Boolean(e.title)}
           />
         </Field>
         <Field
@@ -205,24 +248,49 @@ export function ReservationForm({
             ) : null}
           </div>
         </Field>
-        <Field id="ticketType" label="席種" error={e.ticketType} hint="例: 一般、前方エリア">
-          <input
-            id="ticketType"
-            name="ticketType"
-            value={ticketType}
-            onChange={(ev) => setTicketType(ev.target.value)}
-            required
-            aria-invalid={Boolean(e.ticketType)}
-          />
+        <Field
+          id="ticketType"
+          label="席種"
+          error={e.ticketType}
+          hint={info ? undefined : "例: 一般、前方エリア"}
+        >
+          {info ? (
+            <select
+              id="ticketType"
+              name="ticketType"
+              value={ticketType}
+              onChange={(ev) => setTicketType(ev.target.value)}
+            >
+              {info.ticketTypes.map((t) => (
+                <option key={t} value={t}>
+                  {t}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <input
+              id="ticketType"
+              name="ticketType"
+              value={ticketType}
+              onChange={(ev) => setTicketType(ev.target.value)}
+              required
+              aria-invalid={Boolean(e.ticketType)}
+            />
+          )}
         </Field>
-        <Field id="quantity" label="枚数" error={e.quantity}>
+        <Field
+          id="quantity"
+          label="枚数"
+          error={e.quantity}
+          hint={info ? `1 回の注文は ${info.maxQuantity} 枚まで` : undefined}
+        >
           <select
             id="quantity"
             name="quantity"
             value={quantity}
             onChange={(ev) => setQuantity(ev.target.value)}
           >
-            {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
+            {Array.from({ length: info?.maxQuantity ?? 10 }, (_, i) => i + 1).map((n) => (
               <option key={n} value={n}>
                 {n} 枚
               </option>
@@ -257,9 +325,15 @@ export function ReservationForm({
 
       <fieldset className="field">
         <legend>購入のしかた</legend>
-        <div className="choice-row" key={siteId}>
+        <div className="choice-row">
           <label className="choice">
-            <input type="radio" name="mode" value="manual" defaultChecked={!autoAllowed} />
+            <input
+              type="radio"
+              name="mode"
+              value="manual"
+              checked={mode === "manual"}
+              onChange={() => setMode("manual")}
+            />
             <span className="choice-title">手動で購入</span>
             <span className="choice-sub">カウントダウンと所要時間の記録で補助します</span>
           </label>
@@ -269,7 +343,8 @@ export function ReservationForm({
               name="mode"
               value="auto"
               disabled={!autoAllowed}
-              defaultChecked={autoAllowed}
+              checked={mode === "auto"}
+              onChange={() => setMode("auto")}
             />
             <span className="choice-title">自動で購入</span>
             <span className="choice-sub">
@@ -312,4 +387,28 @@ export function ReservationForm({
       </div>
     </form>
   );
+}
+
+function isUrl(value: string): boolean {
+  try {
+    new URL(value);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** 公演 URL の欄の下に出す、自動入力の状態 */
+function eventUrlHint(
+  autoFill: boolean,
+  lookup: { state: "idle" | "loading" | "done" } | { error: string },
+  info: EventInfo | null,
+): string | undefined {
+  if (!autoFill) return undefined;
+  if ("error" in lookup) return undefined;
+  if (lookup.state === "loading") return "公演情報を読み込んでいます…";
+  if (lookup.state === "done" && info) {
+    return `公演情報を読み込みました（席種 ${info.ticketTypes.length} つ・1 回 ${info.maxQuantity} 枚まで）`;
+  }
+  return "URL を入れると、公演名・席種・枚数の上限が自動で入ります";
 }

@@ -3,13 +3,14 @@
 import {
   type Account,
   accountCreateSchema,
+  type EventInfo,
   manualRunCreateSchema,
   type Reservation,
   reservationCreateSchema,
 } from "@zero-second/shared";
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
-import { api } from "@/lib/api";
+import { redirect, unstable_rethrow } from "next/navigation";
+import { ApiError, api } from "@/lib/api";
 import {
   blankToUndefined,
   type FormState,
@@ -21,6 +22,21 @@ import {
 import { fromJstInput } from "@/lib/format";
 
 // ---------- reservations ----------
+
+export type EventInfoResult = { ok: true; info: EventInfo } | { ok: false; message: string };
+
+/** 公演 URL から公演情報を読む（予約の登録画面の自動入力。#43） */
+export async function lookupEventInfo(site: string, url: string): Promise<EventInfoResult> {
+  try {
+    const params = new URLSearchParams({ site, url });
+    return { ok: true, info: await api<EventInfo>(`/event-info?${params}`) };
+  } catch (e) {
+    // セッション切れのログイン画面への移動は、そのまま投げ直す
+    unstable_rethrow(e);
+    if (e instanceof ApiError) return { ok: false, message: e.message };
+    return { ok: false, message: "公演情報を読めませんでした" };
+  }
+}
 
 export async function createReservation(_prev: FormState, formData: FormData): Promise<FormState> {
   const values = formValues(formData);

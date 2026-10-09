@@ -153,3 +153,12 @@ export type ReservationListItem = Reservation & {
   checklistTotal: number;
   checklistDone: number;
 };
+
+/** 公演 URL から読んだ公演情報（予約の登録画面の自動入力。#43） */
+export type EventInfo = {
+  title: string;
+  /** 選べる席種（予約の席種にそのまま入れる名前） */
+  ticketTypes: string[];
+  /** 1 回の注文で買える枚数の上限 */
+  maxQuantity: number;
+};

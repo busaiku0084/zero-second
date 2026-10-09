@@ -102,7 +102,7 @@ make docker-dev-down
 | `API_TOKEN` | 設定すると API に Bearer 認証が必要になる |
 | `DATABASE_URL` | SQLite の場所 |
 | `CREDENTIALS_ENCRYPTION_KEY` | ログイン情報の暗号化鍵（`openssl rand -base64 32`） |
-| `MOCK_SITE_URL` | ワーカーがモックサイトへ送る先（既定 `http://127.0.0.1:47302`。Docker では `http://mock-site:47302`） |
+| `MOCK_SITE_URL` | ワーカーと API（公演情報の自動入力）がモックサイトへ送る先（既定 `http://127.0.0.1:47302`。Docker では `http://mock-site:47302`） |
 | `API_HOST` / `MOCK_SITE_HOST` | 待ち受けるアドレス（既定 127.0.0.1。Docker の中だけ 0.0.0.0） |
 | `MOCK_SITE_PORT` | モックサイトのポート（既定 47302。変えると予約フォームが埋める URL とずれる） |
 | `MOCK_SITE_LATENCY_MS` | モックサイトの応答の遅れ（既定 30。0〜2 倍でばらつく） |

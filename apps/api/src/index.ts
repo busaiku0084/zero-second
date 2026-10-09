@@ -47,6 +47,7 @@ const app = createApp({
   apiToken: process.env.API_TOKEN || undefined,
   vapid,
   notificationService,
+  eventInfo: { mockSiteUrl: process.env.MOCK_SITE_URL || "http://127.0.0.1:47302" },
 });
 
 // リマインドと自動購入の結果を、数秒おきに通知する（ADR 0017）

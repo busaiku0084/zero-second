@@ -622,3 +622,76 @@ describe("ユーザー管理", () => {
     expect((await get("/users", m.token)).status).toBe(200);
   });
 });
+
+describe("公演情報の自動入力（#43）", () => {
+  const requested: string[] = [];
+  const mockEvent = {
+    id: "ok",
+    title: "モック公演「成功」",
+    tickets: [{ name: "一般" }, { name: "前方エリア" }],
+    maxPerOrder: 4,
+  };
+
+  beforeEach(() => {
+    requested.length = 0;
+    const fakeFetch = (async (input: string | URL | Request) => {
+      const url = String(input);
+      requested.push(url);
+      if (url.endsWith("/api/events/ok")) return Response.json(mockEvent);
+      return Response.json({ error: "not_found" }, { status: 404 });
+    }) as typeof fetch;
+    app = createApp({
+      db,
+      encryptionKey: key,
+      eventInfo: { mockSiteUrl: "http://mock-site:47302", fetch: fakeFetch },
+    });
+  });
+
+  const info = (site: string, url: string, token: string | null = session) =>
+    get(`/event-info?${new URLSearchParams({ site, url })}`, token);
+
+  it("モックサイトは、設定の接続先から公演名・席種・枚数の上限を読む", async () => {
+    // 予約の URL のホスト（127.0.0.1）ではなく、設定の接続先（mock-site）へ送る
+    const res = await info("mock", "http://127.0.0.1:47302/events/ok");
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      title: "モック公演「成功」",
+      ticketTypes: ["一般", "前方エリア"],
+      maxQuantity: 4,
+    });
+    expect(requested).toEqual(["http://mock-site:47302/api/events/ok"]);
+  });
+
+  it("Sauce Demo は通信せずに商品一覧から作る", async () => {
+    const res = await info("saucedemo", "http://127.0.0.1:47303/inventory-item.html?id=4");
+    expect(await res.json()).toEqual({
+      title: "Sauce Demo「Sauce Labs Backpack」",
+      ticketTypes: ["Sauce Labs Backpack"],
+      maxQuantity: 1,
+    });
+    expect(requested).toEqual([]);
+  });
+
+  it("自動化を禁止しているサイトのページは取りに行かない", async () => {
+    const res = await info("ticketdive", "https://ticketdive.com/event/example");
+    expect(res.status).toBe(422);
+    expect(requested).toEqual([]);
+  });
+
+  it("サイトと合わない URL・ない公演・未ログインはエラー", async () => {
+    expect((await info("mock", "https://ticketdive.com/events/ok")).status).toBe(422);
+    expect((await info("mock", "http://127.0.0.1:47302/foo")).status).toBe(422);
+    expect((await info("mock", "http://127.0.0.1:47302/events/unknown")).status).toBe(404);
+    expect(
+      (await info("saucedemo", "http://127.0.0.1:47303/inventory-item.html?id=99")).status,
+    ).toBe(404);
+    expect((await info("mock", "http://127.0.0.1:47302/events/ok", null)).status).toBe(401);
+  });
+
+  it("接続先が外部のホストなら送らない", async () => {
+    app = createApp({ db, encryptionKey: key, eventInfo: { mockSiteUrl: "https://example.com" } });
+    const res = await info("mock", "http://127.0.0.1:47302/events/ok");
+    expect(res.status).toBe(502);
+    expect(requested).toEqual([]);
+  });
+});
