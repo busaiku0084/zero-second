@@ -1,4 +1,4 @@
-.PHONY: setup dev dev-web dev-api dev-mock-site dev-striker check check-fix type-check test
+.PHONY: setup dev dev-web dev-api dev-mock-site dev-striker docker-up docker-down docker-logs docker-dev docker-dev-down check check-fix type-check test
 
 setup: .env
 	pnpm install
@@ -42,3 +42,26 @@ type-check:
 test:
 	pnpm test
 	cargo test
+
+# ---- Docker（ADR 0015）。ポートは 127.0.0.1 の 47300（web）・47302（mock-site）だけを公開する ----
+
+DEV_COMPOSE = docker compose -f compose.yaml -f compose.dev.yaml
+
+# 本番相当のイメージで起動する（バックグラウンド）
+docker-up: .env
+	docker compose up -d --build
+	@echo "http://127.0.0.1:47300"
+
+docker-down:
+	docker compose down
+
+docker-logs:
+	docker compose logs -f
+
+# ソースをマウントしてホットリロードで起動する（フォアグラウンド。Ctrl+C で止まる）
+# -V: 依存を入れ直したときに古い node_modules のボリュームを使わない
+docker-dev: .env
+	$(DEV_COMPOSE) up --build -V
+
+docker-dev-down:
+	$(DEV_COMPOSE) down

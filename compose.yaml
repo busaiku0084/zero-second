@@ -1,0 +1,89 @@
+# 本番相当の構成。`make docker-up` で起動し、http://127.0.0.1:47300 を開く（ADR 0015）
+#
+# - プロジェクト名を固定し、コンテナ・ネットワーク・ボリュームを zero-second- で始まる名前にする
+# - ホストに公開するのは web と mock-site だけ。どちらも 127.0.0.1 の 4730x（本職の開発と競合しない範囲）
+# - api と striker はホストに公開せず、compose のネットワークの中だけでつながる
+name: zero-second
+
+x-node: &node
+  image: zero-second-node:local
+  build:
+    context: .
+    dockerfile: docker/node.Dockerfile
+    target: runtime
+  env_file:
+    - path: .env
+      required: false
+  restart: unless-stopped
+
+services:
+  api:
+    <<: *node
+    working_dir: /app/apps/api
+    command: ["node_modules/.bin/tsx", "src/index.ts"]
+    environment:
+      API_HOST: 0.0.0.0
+      API_PORT: "47301"
+      DATABASE_URL: file:/data/zero-second.sqlite
+    volumes:
+      - data:/data
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:47301/health').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 5s
+
+  web:
+    <<: *node
+    working_dir: /app/apps/web
+    command: ["node_modules/.bin/next", "start", "--port", "47300", "--hostname", "0.0.0.0"]
+    environment:
+      API_URL: http://api:47301
+    ports:
+      - "127.0.0.1:47300:47300"
+    depends_on:
+      api:
+        condition: service_healthy
+
+  mock-site:
+    <<: *node
+    working_dir: /app/apps/mock-site
+    command: ["node_modules/.bin/tsx", "src/index.ts"]
+    environment:
+      MOCK_SITE_HOST: 0.0.0.0
+      MOCK_SITE_PORT: "47302"
+    ports:
+      # 予約詳細の「公演ページを開く」でブラウザから開くため公開する
+      - "127.0.0.1:47302:47302"
+
+  striker:
+    image: zero-second-striker:local
+    build:
+      context: .
+      dockerfile: docker/striker.Dockerfile
+      target: runtime
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      DATABASE_URL: file:/data/zero-second.sqlite
+      MOCK_SITE_URL: http://mock-site:47302
+    volumes:
+      - data:/data
+    depends_on:
+      api:
+        condition: service_healthy
+      mock-site:
+        condition: service_started
+    restart: unless-stopped
+    # Ctrl+C と同じく、実行中の購入が終わるのを待ってから止まる
+    stop_signal: SIGINT
+    stop_grace_period: 60s
+
+volumes:
+  data:

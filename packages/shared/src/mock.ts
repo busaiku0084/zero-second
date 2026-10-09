@@ -3,7 +3,7 @@
  *
  * 公演 URL の末尾（/events/{id}）でシナリオを選ぶ。striker の mock アダプタも同じ id を使う。
  */
-export const MOCK_SITE_URL = "http://127.0.0.1:8788";
+export const MOCK_SITE_URL = "http://127.0.0.1:47302";
 
 export const MOCK_SCENARIOS = [
   { id: "ok", name: "成功", description: "そのまま購入できます" },

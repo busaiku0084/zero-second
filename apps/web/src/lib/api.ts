@@ -2,7 +2,7 @@
 
 import { connection } from "next/server";
 
-const API_URL = process.env.API_URL ?? "http://127.0.0.1:8787";
+const API_URL = process.env.API_URL ?? "http://127.0.0.1:47301";
 
 export type ApiIssue = { path: string; message: string };
 

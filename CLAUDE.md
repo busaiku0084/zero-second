@@ -41,6 +41,7 @@ zero-second/
 │           ├── retry.rs     # 上限つき再試行（RetryPolicy）
 │           └── db.rs        # 予約の取得・結果の保存
 ├── db/migrations/        # SQLite のスキーマ（TS・Rust 共通）
+├── docker/               # Dockerfile（node 共通・striker）。compose.yaml / compose.dev.yaml は直下
 └── docs/                 # 設計メモ・サイト別の調査結果
 ```
 
@@ -74,15 +75,23 @@ zero-second/
 ```bash
 make setup        # 依存のインストールと .env の作成
 make dev          # 下の 4 つをまとめて起動
-make dev-web      # http://localhost:3000
-make dev-api      # http://localhost:8787
-make dev-mock-site # http://127.0.0.1:8788（検証用のチケットサイト）
+make dev-web      # http://127.0.0.1:47300
+make dev-api      # http://127.0.0.1:47301
+make dev-mock-site # http://127.0.0.1:47302（検証用のチケットサイト）
 make dev-striker  # ワーカーの起動
+make docker-up    # Docker（本番相当）で起動。docker-down で停止
+make docker-dev   # Docker（ソースをマウントしてホットリロード）
 make check        # Biome + rustfmt + clippy（警告 0 件）
 make check-fix    # 自動修正
 make type-check   # tsc
 make test         # Vitest + cargo test
 ```
+
+## ポートと Docker（本職の開発に影響させない）
+
+- ポートは web 47300 / api 47301 / mock-site 47302 に固定し、127.0.0.1 でのみ待ち受ける（ADR 0015）。3000・8080 などのよくあるポートは使わない
+- Docker でホストに公開するのは web と mock-site だけで、必ず `127.0.0.1:` を付ける。`container_name`・固定サブネットは使わない
+- Docker の操作は compose のプロジェクト（`zero-second`）の中だけで行う。`docker system prune` など全体に効くコマンドは使わない
 
 ## コーディング規約
 
