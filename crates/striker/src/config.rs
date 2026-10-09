@@ -5,6 +5,7 @@ use std::time::Duration;
 
 use anyhow::{Context, bail};
 
+use crate::browser::BrowserSettings;
 use crate::crypto::CredentialKey;
 
 #[derive(Debug, Clone)]
@@ -18,6 +19,8 @@ pub struct Config {
     /// サイトのログイン情報を復号する鍵（`CREDENTIALS_ENCRYPTION_KEY`、API と同じ値）。
     /// 未設定なら、アカウントを指定した予約は失敗にする
     pub credential_key: Option<CredentialKey>,
+    /// ブラウザ操作モードの Chrome（ADR 0021）
+    pub browser: BrowserSettings,
 }
 
 /// アダプタごとの設定。アダプタを足したら、必要な項目をここに足す
@@ -25,6 +28,8 @@ pub struct Config {
 pub struct SitesConfig {
     /// モックサイトの接続先（`MOCK_SITE_URL`）。Docker ではサービス名（`http://mock-site:...`）になる
     pub mock_url: String,
+    /// Sauce Demo（ローカルで動かしたもの）の接続先（`SAUCE_DEMO_URL`）。ブラウザ操作モードの確認用
+    pub sauce_demo_url: String,
 }
 
 impl Config {
@@ -42,10 +47,20 @@ impl Config {
                 mock_url: get("MOCK_SITE_URL")
                     .filter(|v| !v.trim().is_empty())
                     .unwrap_or_else(|| "http://127.0.0.1:47302".into()),
+                sauce_demo_url: get("SAUCE_DEMO_URL")
+                    .filter(|v| !v.trim().is_empty())
+                    .unwrap_or_else(|| "http://127.0.0.1:47303".into()),
             },
             credential_key: match get("CREDENTIALS_ENCRYPTION_KEY") {
                 Some(v) if !v.trim().is_empty() => Some(CredentialKey::parse(&v)?),
                 _ => None,
+            },
+            browser: BrowserSettings {
+                executable: get("STRIKER_CHROME_PATH")
+                    .filter(|v| !v.trim().is_empty())
+                    .map(PathBuf::from),
+                headful: flag(&get, "STRIKER_BROWSER_HEADFUL"),
+                no_sandbox: flag(&get, "STRIKER_CHROME_NO_SANDBOX"),
             },
         })
     }
@@ -58,6 +73,11 @@ fn database_path(url: &str) -> anyhow::Result<PathBuf> {
         bail!("DATABASE_URL が空です");
     }
     Ok(PathBuf::from(path))
+}
+
+/// true / 1 のときだけ有効
+fn flag(get: &impl Fn(&str) -> Option<String>, key: &str) -> bool {
+    matches!(get(key).as_deref().map(str::trim), Some("true" | "1"))
 }
 
 fn ms(get: &impl Fn(&str) -> Option<String>, key: &str, default: u64) -> anyhow::Result<u64> {

@@ -88,12 +88,14 @@ impl Scheduler {
 
             tracing::info!(reservation_id = reservation.id, site = site.id(), title = %reservation.title, "準備を始めます");
             let db = Arc::clone(&self.db);
-            let policy = site.retry_policy();
-            let key = self.config.credential_key.clone();
+            let env = executor::RunEnv {
+                policy: site.retry_policy(),
+                credential_key: self.config.credential_key.clone(),
+                browser: self.config.browser.clone(),
+            };
             tasks.spawn(async move {
                 let id = reservation.id;
-                let result =
-                    executor::execute(&db, site.as_ref(), reservation, &policy, key.as_ref()).await;
+                let result = executor::execute(&db, site.as_ref(), reservation, &env).await;
                 if result.is_err() {
                     // 保存にも失敗した場合、予約が preparing / running のまま残らないようにする
                     let _ = db.set_status(id, ReservationStatus::Failed);

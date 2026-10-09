@@ -7,7 +7,10 @@ import {
   type MockScenarioId,
   mockEventUrl,
   REMINDER_MINUTE_OPTIONS,
+  SAUCE_DEMO_PRODUCTS,
+  SAUCE_DEMO_USERS,
   type Site,
+  sauceDemoProductUrl,
 } from "@zero-second/shared";
 import { useActionState, useState } from "react";
 import { createReservation } from "@/app/actions";
@@ -42,9 +45,23 @@ export function ReservationForm({
       ? DEFAULT_REMINDER_MINUTES
       : v.reminderMinutes.split(",").filter(Boolean).map(Number);
 
+  /** 検証用のサイト（モック・Sauce Demo）なら、販売開始を「1 分後」にするボタンを出す */
+  const testSite = siteId === "mock" || siteId === "saucedemo";
+  const product = SAUCE_DEMO_PRODUCTS.find((p) => sauceDemoProductUrl(p.id) === eventUrl);
+
   function selectSite(id: string) {
     setSiteId(id);
-    if (id === "mock" && eventUrl === "") selectScenario("ok");
+    if (id === "mock" && (eventUrl === "" || product)) selectScenario("ok");
+    if (id === "saucedemo" && (eventUrl === "" || scenario)) selectProduct(4);
+  }
+
+  /** Sauce Demo の商品を選ぶと、公演 URL と公演名を埋める（ADR 0021） */
+  function selectProduct(id: number) {
+    setEventUrl(sauceDemoProductUrl(id));
+    const name = SAUCE_DEMO_PRODUCTS.find((p) => p.id === id)?.name ?? "";
+    if (title === "" || title.startsWith("モック公演") || title.startsWith("Sauce Demo")) {
+      setTitle(`Sauce Demo「${name}」`);
+    }
   }
 
   /** モックサイトのシナリオを選ぶと、公演 URL と公演名を埋める */
@@ -78,6 +95,34 @@ export function ReservationForm({
           ))}
         </div>
       </fieldset>
+
+      {siteId === "saucedemo" ? (
+        <fieldset className="field">
+          <legend>商品（Sauce Demo）</legend>
+          <div className="choice-row">
+            {SAUCE_DEMO_PRODUCTS.map((p) => (
+              <label key={p.id} className="choice">
+                <input
+                  type="radio"
+                  name="sauceDemoProduct"
+                  value={p.id}
+                  checked={product?.id === p.id}
+                  onChange={() => selectProduct(p.id)}
+                />
+                <span className="choice-title">{p.name}</span>
+                <span className="choice-sub">
+                  id {p.id}（{p.id % 2 === 1 ? "奇数" : "偶数"}）
+                </span>
+              </label>
+            ))}
+          </div>
+          <p className="field-hint">
+            ブラウザを操作して買います。アカウントに Sauce Demo のテストユーザー（パスワードは
+            secret_sauce）を登録して指定してください:{" "}
+            {SAUCE_DEMO_USERS.map((u) => `${u.loginId}（${u.description}）`).join("、")}
+          </p>
+        </fieldset>
+      ) : null}
 
       {siteId === "mock" ? (
         <fieldset className="field">
@@ -141,7 +186,7 @@ export function ReservationForm({
               required
               aria-invalid={Boolean(e.saleStartsAtMs)}
             />
-            {siteId === "mock" ? (
+            {testSite ? (
               <button
                 type="button"
                 className="button"

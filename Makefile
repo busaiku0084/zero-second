@@ -48,7 +48,7 @@ test:
 	pnpm test
 	cargo test
 
-# ---- Docker（ADR 0015）。ポートは 127.0.0.1 の 47300（web）・47302（mock-site）だけを公開する ----
+# ---- Docker（ADR 0015）。ポートは 127.0.0.1 の 47300（web）・47302（mock-site）・47303（Sauce Demo）だけを公開する ----
 
 DEV_COMPOSE = docker compose -f compose.yaml -f compose.dev.yaml
 

@@ -36,7 +36,13 @@
 
 ## 2. アダプタを書く（`auto` のときだけ）
 
-1. `crates/striker/src/sites/<id>.rs` に `TicketSite` を実装する。`sites/mock.rs` が見本
+1. 操作の方法を決める（[ADR 0021](../adr/0021-browser-mode.md)）
+   - サイトに使える API があれば **Http**（`ctx.http` で叩く）。速い。見本は `sites/mock.rs`
+   - 画面の操作でしか買えなければ **Browser**（`driver()` で `Driver::Browser` を返し、`ctx.browser()?` の goto / click / fill / wait_for で操作する）。見本は `sites/saucedemo.rs`
+     - セレクタはテスト用の属性（`data-test` など）や id のように変わりにくいものを使う
+     - 準備（prepare）で購入の直前の画面まで進め、販売開始の瞬間はボタン 1 回で済むようにする。要る値は `ctx.prepared` に読んでおく
+     - 成功の画面とエラーの表示は `wait_for_any` で同時に待ち、エラーの文言をエラーに含める
+2. `crates/striker/src/sites/<id>.rs` に `TicketSite` を実装する
    - `id()` は sites.json の `id` と同じにする
    - リクエストは必ず `ctx.http`（`TimedClient`）で送る。計測値が `timings` に残る
    - 売り切れは `SiteError::SoldOut`、CAPTCHA・待機列・購入上限は `SiteError::HumanActionRequired` にする（再試行されない）
@@ -44,9 +50,9 @@
    - 必要なら `retry_policy()` で再試行を既定より厳しくする
    - サーバー時刻を測れる URL があれば `clock_probe_url()` で返す（販売開始の 0.5 秒前まで送るので、接続を温める役目も兼ねる）
    - ログインが要るサイトは `requires_credentials()` で true を返し、`login()` で `ctx.credentials`（復号済みのログイン ID とパスワード）を使う。値はログ・エラーメッセージ・`timings` の URL に入れない
-2. 接続先などの設定が要るなら、`config.rs` の `SitesConfig` に項目を足し、環境変数から読む（`.env.example`・`docs/operations.md` にも書く）
-3. `sites/mod.rs` の `SiteRegistry::from_config` に 1 行足して登録する
-4. テストを書く。応答の解釈（`SiteError` への振り分けなど）は純粋関数にして単体テストにする。記録した応答を使う場合は実値を伏せる
+3. 接続先などの設定が要るなら、`config.rs` の `SitesConfig` に項目を足し、環境変数から読む（`.env.example`・`docs/operations.md` にも書く）
+4. `sites/mod.rs` の `SiteRegistry::from_config` に 1 行足して登録する
+5. テストを書く。応答の解釈（`SiteError` への振り分けなど）は純粋関数にして単体テストにする。記録した応答を使う場合は実値を伏せる
 
 ## 3. 確かめる
 

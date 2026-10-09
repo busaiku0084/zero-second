@@ -4,8 +4,6 @@
 //! シナリオだけを読み、ホストは使わない。誤って外部のサイトへ送らないよう、`MOCK_SITE_URL` は
 //! ループバックか、ドットを含まないホスト名（Docker のサービス名）に限る。
 
-use std::net::IpAddr;
-
 use async_trait::async_trait;
 use reqwest::{Response, StatusCode, Url};
 use serde::Deserialize;
@@ -21,27 +19,8 @@ pub struct MockSite {
 
 impl MockSite {
     pub fn new(base_url: &str) -> anyhow::Result<Self> {
-        let url = Url::parse(base_url)
-            .map_err(|e| anyhow::anyhow!("MOCK_SITE_URL を読めません: {base_url}: {e}"))?;
-        let local = match url.host_str() {
-            Some(host) => match host
-                .trim_start_matches('[')
-                .trim_end_matches(']')
-                .parse::<IpAddr>()
-            {
-                Ok(ip) => ip.is_loopback(),
-                // localhost や Docker のサービス名（mock-site）。ドメイン名は外部とみなす
-                Err(_) => !host.contains('.'),
-            },
-            None => false,
-        };
-        if !local {
-            anyhow::bail!(
-                "MOCK_SITE_URL はループバックか Docker のサービス名にしてください: {base_url}"
-            );
-        }
         Ok(Self {
-            origin: url.origin().ascii_serialization(),
+            origin: super::local_origin(base_url, "MOCK_SITE_URL")?,
         })
     }
 

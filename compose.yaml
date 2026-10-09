@@ -1,7 +1,7 @@
 # 本番相当の構成。`make docker-up` で起動し、http://127.0.0.1:47300 を開く（ADR 0015）
 #
 # - プロジェクト名を固定し、コンテナ・ネットワーク・ボリュームを zero-second- で始まる名前にする
-# - ホストに公開するのは web と mock-site だけ。どちらも 127.0.0.1 の 4730x（本職の開発と競合しない範囲）
+# - ホストに公開するのは web・mock-site・saucedemo だけ。どれも 127.0.0.1 の 4730x（本職の開発と競合しない範囲）
 # - api と striker はホストに公開せず、compose のネットワークの中だけでつながる
 name: zero-second
 
@@ -61,6 +61,16 @@ services:
       # 予約詳細の「公演ページを開く」でブラウザから開くため公開する
       - "127.0.0.1:47302:47302"
 
+  # Sauce Demo（ブラウザ操作モードの確認用。ADR 0021）。公演 URL をブラウザで開くため公開する
+  saucedemo:
+    image: zero-second-saucedemo:local
+    build:
+      context: .
+      dockerfile: docker/saucedemo.Dockerfile
+    ports:
+      - "127.0.0.1:47303:47303"
+    restart: unless-stopped
+
   striker:
     image: zero-second-striker:local
     build:
@@ -73,12 +83,20 @@ services:
     environment:
       DATABASE_URL: file:/data/zero-second.sqlite
       MOCK_SITE_URL: http://mock-site:47302
+      SAUCE_DEMO_URL: http://saucedemo:47303
+      STRIKER_CHROME_PATH: /usr/bin/chromium
+      # コンテナの中では Chrome のサンドボックスが使えないため外す（開くのはローカルの検証用サイトだけ）
+      STRIKER_CHROME_NO_SANDBOX: "true"
+    # Chrome は /dev/shm を多く使う
+    shm_size: 512m
     volumes:
       - data:/data
     depends_on:
       api:
         condition: service_healthy
       mock-site:
+        condition: service_started
+      saucedemo:
         condition: service_started
     restart: unless-stopped
     # Ctrl+C と同じく、実行中の購入が終わるのを待ってから止まる

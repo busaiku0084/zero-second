@@ -25,13 +25,14 @@
 - ログインは ID + パスワード。web はセッションを HttpOnly の Cookie に持ち、API に `x-session-token` で渡す。API が毎回確かめ、本人のデータだけを返す（[ADR 0016](adr/0016-login-and-per-user-data.md)）
 - API とワーカーは DB だけでつながる（[ADR 0004](adr/0004-shared-sqlite-without-queue.md)）
 - 利用規約で自動化を禁止するサイトには、ワーカーからアクセスしない（[ADR 0005](adr/0005-respect-site-terms.md)）
-- 自動購入を許可しているサイトはまだないため、ワーカーの購入先は検証用のモックサイトだけ（[ADR 0012](adr/0012-mock-site-as-local-http-server.md)）
+- 自動購入を許可しているチケットサイトはまだないため、ワーカーの購入先は検証用のサイトだけ: API で買うモックサイト（[ADR 0012](adr/0012-mock-site-as-local-http-server.md)）と、ブラウザ操作で買う Sauce Demo（[ADR 0021](adr/0021-browser-mode.md)）
 
 ## モックサイトで通しで動かす
 
 ```bash
 make setup   # 初回のみ（.env も作る）
 make dev     # web（:47300）・api（:47301）・mock-site（:47302）・striker をまとめて起動
+# ブラウザ操作モードを試すなら Sauce Demo も（Docker のみ）: docker compose up -d saucedemo（:47303）
 # Docker なら make docker-up（本番相当）か make docker-dev（ホットリロード）
 ```
 
@@ -90,9 +91,10 @@ scheduler（1 秒ごと）
 | `db.rs` | 予約の取得（条件付き更新）・状態の更新・結果と計測値の保存 |
 | `clock.rs` | 現在時刻・サーバー時刻とのずれの推定（`OffsetBounds`）・目標時刻までの待機 |
 | `http.rs` | `TimedClient`。リクエストを計測し、計測値をメモリに溜める |
+| `browser.rs` | `BrowserSession`。ヘッドレス Chrome を操作し、操作ごとに計測する（ブラウザ操作モード。ADR 0021） |
 | `retry.rs` | `RetryPolicy`。回数と間隔に上限のある再試行 |
 | `site.rs` | `TicketSite` trait と `SiteError`・`SiteContext` |
-| `sites/` | `SiteRegistry` と登録済みのアダプタ（今は `mock.rs` のみ。`fake.rs` はテスト用）。追加の手順は `docs/development/adding-a-site.md` |
+| `sites/` | `SiteRegistry` と登録済みのアダプタ（`mock.rs`: API、`saucedemo.rs`: ブラウザ操作。`fake.rs` はテスト用）。追加の手順は `docs/development/adding-a-site.md` |
 
 ### 残っていること
 

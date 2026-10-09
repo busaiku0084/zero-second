@@ -2,7 +2,7 @@
 #
 # - node_modules・.next・Rust の target はコンテナ側のボリュームに置き、ホスト（macOS）のものと混ぜない
 # - DB は本番相当（data）とは別のボリューム（dev-data）を使う
-# - ポートは compose.yaml と同じ（127.0.0.1 の 47300 / 47302）。ホストで make dev を動かしているときは止めてから使う
+# - ポートは compose.yaml と同じ（127.0.0.1 の 47300 / 47302 / 47303）。ホストで make dev を動かしているときは止めてから使う
 
 x-node-dev: &node-dev
   image: zero-second-node-dev:local
@@ -35,8 +35,11 @@ services:
     command: ["node_modules/.bin/tsx", "watch", "src/index.ts"]
 
   striker:
-    image: rust:1-slim-bookworm
-    build: !reset null
+    image: zero-second-striker-dev:local
+    build:
+      context: .
+      dockerfile: docker/striker.Dockerfile
+      target: dev
     working_dir: /app
     restart: "no"
     # rust-toolchain.toml（stable）ではなくイメージの toolchain を使う（毎回のダウンロードを避ける）

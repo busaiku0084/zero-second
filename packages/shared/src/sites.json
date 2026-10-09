@@ -19,5 +19,12 @@
     "url": "http://127.0.0.1:47302/",
     "hosts": ["127.0.0.1", "localhost"],
     "automation": "auto"
+  },
+  {
+    "id": "saucedemo",
+    "name": "Sauce Demo（ブラウザ操作の検証用）",
+    "url": "http://127.0.0.1:47303/",
+    "hosts": ["127.0.0.1", "localhost"],
+    "automation": "auto"
   }
 ]

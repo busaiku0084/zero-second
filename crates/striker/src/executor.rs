@@ -1,10 +1,11 @@
 //! 予約 1 件の購入処理（docs/architecture.md「自動購入の流れ」）。
 //!
-//! ログイン情報の復号 → login → prepare → 時刻合わせ → 販売開始まで待機
+//! ログイン情報の復号 →（ブラウザ操作モードならブラウザを起動）→ login → prepare → 時刻合わせ → 販売開始まで待機
 //! → purchase（RetryPolicy の範囲で再試行）→ 保存
 
 use anyhow::Context;
 
+use crate::browser::{BrowserSession, BrowserSettings};
 use crate::clock::{self, now_ms};
 use crate::crypto::CredentialKey;
 use crate::db::Db;
@@ -12,20 +13,27 @@ use crate::http::TimedClient;
 use crate::metrics::Phase;
 use crate::model::{PurchaseOutcome, Reservation, ReservationStatus, RunFinish, RunResult};
 use crate::retry::RetryPolicy;
-use crate::site::{Credentials, SiteContext, SiteError, TicketSite};
+use crate::site::{Credentials, Driver, SiteContext, SiteError, TicketSite};
 
 /// 時刻合わせで送るリクエストの上限（1 回ごとに範囲がおよそ半分になる。1 秒 → 約 8ms）
 const CLOCK_PROBES: u32 = 8;
 /// 時刻合わせは販売開始のこれだけ前までに終える
 const CLOCK_MARGIN_MS: i64 = 500;
 
+/// 実行に使う設定（予約によらないもの）
+#[derive(Clone, Default)]
+pub struct RunEnv {
+    pub policy: RetryPolicy,
+    pub credential_key: Option<CredentialKey>,
+    pub browser: BrowserSettings,
+}
+
 /// 取得済み（preparing）の予約を 1 件実行し、結果を DB に保存する
 pub async fn execute(
     db: &Db,
     site: &dyn TicketSite,
     reservation: Reservation,
-    policy: &RetryPolicy,
-    credential_key: Option<&CredentialKey>,
+    env: &RunEnv,
 ) -> anyhow::Result<RunResult> {
     let run_id = db.create_run(reservation.id, now_ms())?;
     let reservation_id = reservation.id;
@@ -33,17 +41,26 @@ pub async fn execute(
     let mut ctx = SiteContext {
         reservation,
         http: TimedClient::new().context("HTTP クライアントを作れません")?,
+        browser: None,
         credentials: None,
+        prepared: Default::default(),
     };
 
     let mut clock_offset_ms = None;
-    let result = match load_credentials(db, site, reservation_id, credential_key) {
-        Ok(credentials) => {
-            ctx.credentials = credentials;
-            run_steps(db, site, &mut ctx, policy, &mut clock_offset_ms).await
+    let result = async {
+        ctx.credentials = load_credentials(db, site, reservation_id, env.credential_key.as_ref())?;
+        if site.driver() == Driver::Browser {
+            ctx.browser = Some(
+                BrowserSession::launch(&env.browser)
+                    .await
+                    .map_err(SiteError::Other)?,
+            );
         }
-        Err(e) => Err(e),
-    };
+        run_steps(db, site, &mut ctx, &env.policy, &mut clock_offset_ms).await
+    }
+    .await;
+    // 完了時刻は購入の処理が返った瞬間。ブラウザを閉じる時間などを所要時間に入れない
+    let finished_at_ms = now_ms();
 
     let (run_result, error, outcome) = match result {
         Ok(outcome) => (RunResult::Succeeded, None, Some(outcome)),
@@ -56,14 +73,19 @@ pub async fn execute(
         Err(SiteError::Other(e)) => (RunResult::Failed, Some(format!("{e:#}")), None),
     };
 
-    // 計測値は最後にまとめて書く（ADR 0011）
-    let timings = ctx.http.take_timings();
+    // 計測値は最後にまとめて書く（ADR 0011）。HTTP とブラウザの操作を時刻順に並べる
+    let mut timings = ctx.http.take_timings();
+    if let Some(mut browser) = ctx.browser.take() {
+        timings.extend(browser.take_timings());
+        browser.close().await;
+    }
+    timings.sort_by_key(|t| t.started_at_ms);
     db.finish_run(
         reservation_id,
         run_id,
         &RunFinish {
             result: run_result,
-            finished_at_ms: now_ms(),
+            finished_at_ms,
             clock_offset_ms,
             error,
             outcome,
@@ -115,10 +137,10 @@ async fn run_steps(
     policy: &RetryPolicy,
     clock_offset_ms: &mut Option<i64>,
 ) -> Result<PurchaseOutcome, SiteError> {
-    ctx.http.phase = Phase::Login;
+    ctx.set_phase(Phase::Login);
     site.login(ctx).await?;
 
-    ctx.http.phase = Phase::Prepare;
+    ctx.set_phase(Phase::Prepare);
     site.prepare(ctx).await?;
 
     if let Some(url) = site.clock_probe_url(&ctx.reservation) {
@@ -133,7 +155,7 @@ async fn run_steps(
         .map_err(SiteError::Other)?;
     clock::wait_until(target_ms).await;
 
-    ctx.http.phase = Phase::Purchase;
+    ctx.set_phase(Phase::Purchase);
     let mut attempt = 1;
     loop {
         match site.purchase(ctx, attempt).await {
@@ -185,9 +207,12 @@ mod tests {
         setup(&db, id);
         let reservation = db.due_reservations(now_ms(), 60_000).unwrap().remove(0);
         assert!(db.claim(id).unwrap());
-        let result = execute(&db, site, reservation, &fast_policy(), key)
-            .await
-            .unwrap();
+        let env = RunEnv {
+            policy: fast_policy(),
+            credential_key: key.cloned(),
+            ..RunEnv::default()
+        };
+        let result = execute(&db, site, reservation, &env).await.unwrap();
         (db, id, result)
     }
 
