@@ -38,6 +38,8 @@ export function ReservationForm({
   const siteAccounts = accounts.filter((a) => a.site === siteId);
   const [title, setTitle] = useState(v.title ?? "");
   const [eventUrl, setEventUrl] = useState(v.eventUrl ?? "");
+  const [ticketType, setTicketType] = useState(v.ticketType ?? "");
+  const [quantity, setQuantity] = useState(v.quantity ?? "1");
   const [saleStartsAt, setSaleStartsAt] = useState(v.saleStartsAt ?? defaultSaleStartsAt);
   const scenario = MOCK_SCENARIOS.find((s) => mockEventUrl(s.id) === eventUrl);
   const reminders =
@@ -49,26 +51,32 @@ export function ReservationForm({
   const testSite = siteId === "mock" || siteId === "saucedemo";
   const product = SAUCE_DEMO_PRODUCTS.find((p) => sauceDemoProductUrl(p.id) === eventUrl);
 
+  /**
+   * サイトを切り替えたら、サイトごとの項目（公演名・URL・席種・枚数）を初期値に戻す。
+   * アカウントと購入のしかたは、下の key={siteId} で初期値に戻る
+   */
   function selectSite(id: string) {
     setSiteId(id);
-    if (id === "mock" && (eventUrl === "" || product)) selectScenario("ok");
-    if (id === "saucedemo" && (eventUrl === "" || scenario)) selectProduct(4);
+    setTitle("");
+    setEventUrl("");
+    setTicketType("");
+    setQuantity("1");
+    if (id === "mock") selectScenario("ok");
+    if (id === "saucedemo") selectProduct(4);
   }
 
   /** Sauce Demo の商品を選ぶと、公演 URL と公演名を埋める（ADR 0021） */
   function selectProduct(id: number) {
     setEventUrl(sauceDemoProductUrl(id));
     const name = SAUCE_DEMO_PRODUCTS.find((p) => p.id === id)?.name ?? "";
-    if (title === "" || title.startsWith("モック公演") || title.startsWith("Sauce Demo")) {
-      setTitle(`Sauce Demo「${name}」`);
-    }
+    setTitle(`Sauce Demo「${name}」`);
   }
 
   /** モックサイトのシナリオを選ぶと、公演 URL と公演名を埋める */
   function selectScenario(id: MockScenarioId) {
     setEventUrl(mockEventUrl(id));
     const name = MOCK_SCENARIOS.find((s) => s.id === id)?.name;
-    if (title === "" || title.startsWith("モック公演")) setTitle(`モック公演「${name}」`);
+    setTitle(`モック公演「${name}」`);
   }
 
   return (
@@ -201,13 +209,19 @@ export function ReservationForm({
           <input
             id="ticketType"
             name="ticketType"
-            defaultValue={v.ticketType}
+            value={ticketType}
+            onChange={(ev) => setTicketType(ev.target.value)}
             required
             aria-invalid={Boolean(e.ticketType)}
           />
         </Field>
         <Field id="quantity" label="枚数" error={e.quantity}>
-          <select id="quantity" name="quantity" defaultValue={v.quantity ?? "1"}>
+          <select
+            id="quantity"
+            name="quantity"
+            value={quantity}
+            onChange={(ev) => setQuantity(ev.target.value)}
+          >
             {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
               <option key={n} value={n}>
                 {n} 枚
