@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { checklistTemplate } from "./checklist";
 import { reservationCreateSchema, reservationUpdateSchema, webhookKind } from "./schemas";
 
 const base = {
@@ -68,5 +69,14 @@ describe("通知", () => {
     expect(webhookKind("http://discord.com/api/webhooks/1/abc")).toBeNull();
     expect(webhookKind("https://discord.com.evil.example/api/webhooks/")).toBeNull();
     expect(webhookKind("http://api:47301/")).toBeNull();
+  });
+});
+
+describe("checklistTemplate", () => {
+  it("サイト名と購入のしかたに合わせた項目になる", () => {
+    const manual = checklistTemplate("ticketdive", "manual");
+    expect(manual[0]).toContain("TicketDive");
+    expect(manual.some((l) => l.includes("自動購入"))).toBe(false);
+    expect(checklistTemplate("mock", "auto").some((l) => l.includes("自動購入"))).toBe(true);
   });
 });

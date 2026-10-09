@@ -52,6 +52,9 @@ zero-second にログインするユーザー（[ADR 0016](adr/0016-login-and-pe
 | `mode` | `manual`（手で購入）/ `auto`（ワーカーが購入） |
 | `status` | 下の状態遷移を参照 |
 
+### checklist_items
+購入前チェックリスト（[ADR 0019](adr/0019-checklist-copied-from-template.md)）。`label`・`position`（並び順）・`done_at_ms`（済ませた時刻。NULL は未チェック）。予約を消すと一緒に消える。
+
 ### notifications / push_subscriptions / notification_settings
 通知（[ADR 0017](adr/0017-notifications.md)）。
 

@@ -1,7 +1,8 @@
-import { type Account, findSite, type Reservation } from "@zero-second/shared";
+import { type Account, type ChecklistItem, findSite, type Reservation } from "@zero-second/shared";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { Checklist } from "@/components/Checklist";
 import { LaunchPanel } from "@/components/LaunchPanel";
 import { StatusPill } from "@/components/StatusPill";
 import { ApiError, api } from "@/lib/api";
@@ -12,7 +13,9 @@ export const metadata: Metadata = { title: "ランチャー" };
 
 async function load(id: string) {
   try {
-    return await api<Reservation>(`/reservations/${encodeURIComponent(id)}`);
+    return await api<Reservation & { checklist: ChecklistItem[] }>(
+      `/reservations/${encodeURIComponent(id)}`,
+    );
   } catch (e) {
     if (e instanceof ApiError && (e.status === 404 || e.status === 400)) notFound();
     throw e;
@@ -42,7 +45,13 @@ export default async function LaunchPage({ params }: PageProps<"/reservations/[i
       </div>
 
       <div className="detail-grid">
-        <LaunchPanel targetMs={r.saleStartsAtMs} eventUrl={r.eventUrl} />
+        <div className="stack">
+          <LaunchPanel targetMs={r.saleStartsAtMs} eventUrl={r.eventUrl} />
+          <section className="panel stack" aria-label="購入前チェックリスト">
+            <h3>購入前チェックリスト</h3>
+            <Checklist reservationId={r.id} items={r.checklist} editable={false} />
+          </section>
+        </div>
 
         <aside className="panel stack" aria-label="購入するもの">
           <h3>購入するもの</h3>

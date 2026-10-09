@@ -1,5 +1,8 @@
 import { zValidator } from "@hono/zod-validator";
 import {
+  checklistItemCreateSchema,
+  checklistItemUpdateSchema,
+  checklistTemplate,
   EVENT_URL_MESSAGE,
   eventUrlMatchesSite,
   findSite,
@@ -10,10 +13,13 @@ import {
   reservationUpdateSchema,
 } from "@zero-second/shared";
 import { Hono } from "hono";
+import { z } from "zod";
 import type { Db } from "../lib/db.js";
-import { type Row, toReservation, toRun } from "../lib/rows.js";
+import { type Row, toChecklistItem, toReservation, toRun } from "../lib/rows.js";
 import type { AppEnv } from "../types.js";
 import { idParam, validationHook } from "./params.js";
+
+const itemParam = idParam.extend({ itemId: z.coerce.number().int().positive() });
 
 const RUN_COLUMNS = "runs.*, reservations.sale_starts_at_ms";
 
@@ -33,6 +39,28 @@ function getReservation(db: Db, userId: number, id: number) {
   return row ? toReservation(row as Row) : null;
 }
 
+function checklistOf(db: Db, reservationId: number) {
+  return db
+    .prepare("SELECT * FROM checklist_items WHERE reservation_id = ? ORDER BY position, id")
+    .all(reservationId)
+    .map((r) => toChecklistItem(r as Row));
+}
+
+/** 項目を末尾に足す */
+function appendChecklist(db: Db, reservationId: number, labels: string[]) {
+  const last = db
+    .prepare("SELECT COALESCE(MAX(position), 0) AS p FROM checklist_items WHERE reservation_id = ?")
+    .get(reservationId) as Row;
+  const insert = db.prepare(
+    `INSERT INTO checklist_items (reservation_id, label, position, created_at_ms)
+     VALUES (?, ?, ?, ?) RETURNING *`,
+  );
+  const now = Date.now();
+  return labels.map((label, i) =>
+    toChecklistItem(insert.get(reservationId, label, Number(last.p) + i + 1, now) as Row),
+  );
+}
+
 /** アカウントが本人のもので、予約と同じサイトのものかを確認する */
 function accountMatchesSite(db: Db, userId: number, accountId: number, site: string): boolean {
   return Boolean(
@@ -45,9 +73,21 @@ function accountMatchesSite(db: Db, userId: number, accountId: number, site: str
 export const reservations = new Hono<AppEnv>()
   .get("/", (c) => {
     const rows = c.var.db
-      .prepare("SELECT * FROM reservations WHERE user_id = ? ORDER BY sale_starts_at_ms DESC")
-      .all(c.var.user.id);
-    return c.json(rows.map((r) => toReservation(r as Row)));
+      .prepare(
+        `SELECT reservations.*,
+           (SELECT COUNT(*) FROM checklist_items WHERE reservation_id = reservations.id) AS checklist_total,
+           (SELECT COUNT(*) FROM checklist_items
+            WHERE reservation_id = reservations.id AND done_at_ms IS NOT NULL) AS checklist_done
+         FROM reservations WHERE user_id = ? ORDER BY sale_starts_at_ms DESC`,
+      )
+      .all(c.var.user.id) as Row[];
+    return c.json(
+      rows.map((r) => ({
+        ...toReservation(r),
+        checklistTotal: Number(r.checklist_total),
+        checklistDone: Number(r.checklist_done),
+      })),
+    );
   })
   .get("/:id", zValidator("param", idParam, validationHook), (c) => {
     const { id } = c.req.valid("param");
@@ -60,7 +100,7 @@ export const reservations = new Hono<AppEnv>()
       )
       .all(id)
       .map((r) => toRun(r as Row));
-    return c.json({ ...reservation, runs });
+    return c.json({ ...reservation, runs, checklist: checklistOf(c.var.db, id) });
   })
   .post("/", zValidator("json", reservationCreateSchema, validationHook), (c) => {
     const body = c.req.valid("json");
@@ -71,30 +111,41 @@ export const reservations = new Hono<AppEnv>()
       return c.json({ error: "このサイトのアカウントではありません" }, 400);
     }
     const now = Date.now();
-    const row = c.var.db
-      .prepare(
-        `INSERT INTO reservations (
+    const db = c.var.db;
+    db.exec("BEGIN");
+    let row: Row;
+    try {
+      row = db
+        .prepare(
+          `INSERT INTO reservations (
            user_id, account_id, site, title, event_url, ticket_type, quantity, payment_method,
            sale_starts_at_ms, mode, notes, reminder_minutes, status, created_at_ms, updated_at_ms
          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?) RETURNING *`,
-      )
-      .get(
-        c.var.user.id,
-        body.accountId,
-        body.site,
-        body.title,
-        body.eventUrl,
-        body.ticketType,
-        body.quantity,
-        body.paymentMethod,
-        body.saleStartsAtMs,
-        body.mode,
-        body.notes,
-        JSON.stringify(body.reminderMinutes),
-        now,
-        now,
-      );
-    return c.json(toReservation(row as Row), 201);
+        )
+        .get(
+          c.var.user.id,
+          body.accountId,
+          body.site,
+          body.title,
+          body.eventUrl,
+          body.ticketType,
+          body.quantity,
+          body.paymentMethod,
+          body.saleStartsAtMs,
+          body.mode,
+          body.notes,
+          JSON.stringify(body.reminderMinutes),
+          now,
+          now,
+        ) as Row;
+      // 購入前チェックリストはサイトのテンプレートから入れる（#13）
+      appendChecklist(db, Number(row.id), checklistTemplate(body.site, body.mode));
+      db.exec("COMMIT");
+    } catch (e) {
+      db.exec("ROLLBACK");
+      throw e;
+    }
+    return c.json(toReservation(row), 201);
   })
   .patch(
     "/:id",
@@ -236,4 +287,60 @@ export const reservations = new Hono<AppEnv>()
         .get(runId);
       return c.json(toRun(row as Row), 201);
     },
-  );
+  )
+  // ---- 購入前チェックリスト（#13） ----
+  .post(
+    "/:id/checklist",
+    zValidator("param", idParam, validationHook),
+    zValidator("json", checklistItemCreateSchema, validationHook),
+    (c) => {
+      const { id } = c.req.valid("param");
+      if (!getReservation(c.var.db, c.var.user.id, id)) {
+        return c.json({ error: "予約が見つかりません" }, 404);
+      }
+      const [item] = appendChecklist(c.var.db, id, [c.req.valid("json").label]);
+      return c.json(item, 201);
+    },
+  )
+  // テンプレートの項目を足す（チェックリストより前に作った予約など）
+  .post("/:id/checklist/template", zValidator("param", idParam, validationHook), (c) => {
+    const { id } = c.req.valid("param");
+    const reservation = getReservation(c.var.db, c.var.user.id, id);
+    if (!reservation) return c.json({ error: "予約が見つかりません" }, 404);
+    const existing = new Set(checklistOf(c.var.db, id).map((i) => i.label));
+    appendChecklist(
+      c.var.db,
+      id,
+      checklistTemplate(reservation.site, reservation.mode).filter((label) => !existing.has(label)),
+    );
+    return c.json(checklistOf(c.var.db, id), 201);
+  })
+  .patch(
+    "/:id/checklist/:itemId",
+    zValidator("param", itemParam, validationHook),
+    zValidator("json", checklistItemUpdateSchema, validationHook),
+    (c) => {
+      const { id, itemId } = c.req.valid("param");
+      if (!getReservation(c.var.db, c.var.user.id, id)) {
+        return c.json({ error: "予約が見つかりません" }, 404);
+      }
+      const row = c.var.db
+        .prepare(
+          "UPDATE checklist_items SET done_at_ms = ? WHERE id = ? AND reservation_id = ? RETURNING *",
+        )
+        .get(c.req.valid("json").done ? Date.now() : null, itemId, id);
+      if (!row) return c.json({ error: "項目が見つかりません" }, 404);
+      return c.json(toChecklistItem(row as Row));
+    },
+  )
+  .delete("/:id/checklist/:itemId", zValidator("param", itemParam, validationHook), (c) => {
+    const { id, itemId } = c.req.valid("param");
+    if (!getReservation(c.var.db, c.var.user.id, id)) {
+      return c.json({ error: "予約が見つかりません" }, 404);
+    }
+    const res = c.var.db
+      .prepare("DELETE FROM checklist_items WHERE id = ? AND reservation_id = ?")
+      .run(itemId, id);
+    if (res.changes === 0) return c.json({ error: "項目が見つかりません" }, 404);
+    return c.body(null, 204);
+  });

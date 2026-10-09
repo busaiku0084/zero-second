@@ -114,6 +114,17 @@
 - `result`: `succeeded` / `sold_out` / `failed` / `needs_human`
 - `startedAtMs` を省略すると販売開始時刻を使う。所要時間（`elapsedMs`）は「完了 + 時計のずれ（`clockOffsetMs`、無ければ 0）− 販売開始」（[ADR 0013](adr/0013-clock-sync-bisection-and-server-time-elapsed.md)）
 
+### 購入前チェックリスト
+
+予約ごとの確認項目（[ADR 0019](adr/0019-checklist-copied-from-template.md)）。予約を作るとテンプレートの項目が入る。`GET /reservations/:id` の `checklist`、`GET /reservations` の `checklistTotal`・`checklistDone` で読める。
+
+| メソッド | パス | 内容 |
+|---|---|---|
+| POST | `/reservations/:id/checklist` | `{ label }` → 201 |
+| POST | `/reservations/:id/checklist/template` | 今のテンプレートのうち、無い項目を足す → 201（全項目） |
+| PATCH | `/reservations/:id/checklist/:itemId` | `{ done }` |
+| DELETE | `/reservations/:id/checklist/:itemId` | → 204 |
+
 ### 通知
 
 本人の通知と届け先の設定（[ADR 0017](adr/0017-notifications.md)）。

@@ -139,3 +139,9 @@ export type NotificationSettings = {
   /** 設定済みの Webhook の種類（URL そのものは返さない） */
   webhookKind: WebhookKind | null;
 };
+
+/** 予約の一覧の 1 件。チェックリストの進み具合つき */
+export type ReservationListItem = Reservation & {
+  checklistTotal: number;
+  checklistDone: number;
+};
