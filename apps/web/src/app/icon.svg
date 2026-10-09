@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- zero-second のアイコン: 針が 0（真上）を指すストップウォッチ。色は globals.css のアクセント色 -->
+  <rect width="64" height="64" rx="14" fill="#2a78d6"/>
+  <g fill="none" stroke="#fff" stroke-linecap="round">
+    <circle cx="32" cy="36" r="17" stroke-width="5"/>
+    <path d="M27 10.5h10M32 10.5v8" stroke-width="5"/>
+    <path d="M45.5 18.5l3.5-3.5" stroke-width="4.5"/>
+    <path d="M32 36V25" stroke-width="5"/>
+  </g>
+  <circle cx="32" cy="36" r="3.5" fill="#fff"/>
+</svg>
