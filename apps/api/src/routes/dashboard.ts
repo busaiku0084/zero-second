@@ -56,16 +56,19 @@ export const dashboard = new Hono<AppEnv>().get(
       const result = String(r.result) as RunResult;
       resultCounts[result] += 1;
       if (r.finished_at_ms === null) continue;
+      const elapsed = elapsedMs(
+        Number(r.finished_at_ms),
+        Number(r.sale_starts_at_ms),
+        r.clock_offset_ms === null ? null : Number(r.clock_offset_ms),
+      );
+      // 販売開始より前に終わった実行（準備の段階での失敗）は、所要時間が無いのでグラフに載せない
+      if (elapsed === null) continue;
       series.push({
         runId: Number(r.id),
         reservationId: Number(r.reservation_id),
         title: String(r.title),
         startedAtMs: Number(r.started_at_ms),
-        elapsedMs: elapsedMs(
-          Number(r.finished_at_ms),
-          Number(r.sale_starts_at_ms),
-          r.clock_offset_ms === null ? null : Number(r.clock_offset_ms),
-        ),
+        elapsedMs: elapsed,
         result,
       });
     }

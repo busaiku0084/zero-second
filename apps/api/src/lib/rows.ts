@@ -70,13 +70,15 @@ export function toReservation(r: Row): Reservation {
  *
  * finished_at_ms は端末の時計、sale_starts_at_ms はサイト（サーバー）の時計なので、
  * ワーカーが測ったずれ（サーバー − 端末）を足してサーバーの時計にそろえてから引く。
+ * 販売開始より前に終わった実行（準備の段階での失敗など）は、所要時間が無いので null を返す。
  */
 export function elapsedMs(
   finishedAtMs: number,
   saleStartsAtMs: number,
   clockOffsetMs: number | null,
-): number {
-  return finishedAtMs + (clockOffsetMs ?? 0) - saleStartsAtMs;
+): number | null {
+  const elapsed = finishedAtMs + (clockOffsetMs ?? 0) - saleStartsAtMs;
+  return elapsed < 0 ? null : elapsed;
 }
 
 /** runs と reservations.sale_starts_at_ms を結合した行から変換する */
