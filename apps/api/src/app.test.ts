@@ -422,6 +422,23 @@ describe("手動購入の記録とダッシュボード", () => {
     expect(summary.series).toHaveLength(2);
   });
 
+  it("販売開始より前に失敗した実行は所要時間なしで、グラフに載せない", async () => {
+    const a = await createReservation();
+    // ワーカーが準備の段階（販売開始の 2 分前）で失敗したときの記録
+    db.prepare(
+      `INSERT INTO runs (reservation_id, mode, started_at_ms, finished_at_ms, result, error)
+       VALUES (?, 'auto', ?, ?, 'failed', 'ログインできません')`,
+    ).run(a.id, SALE_AT - 120_000, SALE_AT - 115_000);
+
+    const detail = (await (await get(`/reservations/${a.id}`)).json()) as { runs: Run[] };
+    expect(detail.runs[0]?.elapsedMs).toBeNull();
+
+    const summary = (await (await get("/dashboard?range=all")).json()) as DashboardSummary;
+    expect(summary.runCount).toBe(1);
+    expect(summary.resultCounts.failed).toBe(1);
+    expect(summary.series).toHaveLength(0);
+  });
+
   it("完了時刻が開始より前なら 400", async () => {
     const a = await createReservation();
     const res = await json("POST", `/reservations/${a.id}/manual-runs`, {
