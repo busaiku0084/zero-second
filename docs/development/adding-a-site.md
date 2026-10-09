@@ -173,8 +173,9 @@ async fn prepare(&self, ctx: &mut SiteContext) -> Result<(), SiteError> {
 
 1. 接続先などの設定が要るなら、`config.rs` の `SitesConfig` に項目を足し、環境変数から読む（`.env.example`・`docs/operations.md` にも書く）
 2. `sites/mod.rs` の `SiteRegistry::from_config` に 1 行足して登録する
-3. テストを書く。応答の解釈（`SiteError` への振り分け・席種と枚数の確認など）は純粋関数にして単体テストにする。記録した応答を使う場合は実値を伏せる
-4. モックサイトのように自分で用意したサイトで、両方の方法を実際に動かす（`STRIKER_DRIVERS` で切り替える）
+3. 予約の登録画面の自動入力（公演名・席種・枚数の上限）に対応させる: `apps/api/src/lib/event-info.ts` の `resolveEventInfo` にサイトの読み方を足す。送り先は設定の接続先に固定する（[ADR 0023](../adr/0023-event-info-autofill.md)）
+4. テストを書く。応答の解釈（`SiteError` への振り分け・席種と枚数の確認など）は純粋関数にして単体テストにする。記録した応答を使う場合は実値を伏せる
+5. モックサイトのように自分で用意したサイトで、両方の方法を実際に動かす（`STRIKER_DRIVERS` で切り替える）
 
 ## 3. 確かめる
 

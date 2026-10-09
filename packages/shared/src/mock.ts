@@ -46,6 +46,11 @@ export const SAUCE_DEMO_USERS = [
   { loginId: "problem_user", description: "id が奇数の商品をカートに入れられない（失敗）" },
 ] as const;
 
+/** Sauce Demo の予約の公演名 */
+export function eventTitleForSauceDemo(productName: string): string {
+  return `Sauce Demo「${productName}」`;
+}
+
 export function sauceDemoProductUrl(id: number, base: string = SAUCE_DEMO_URL): string {
   return `${base}/inventory-item.html?id=${id}`;
 }

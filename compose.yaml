@@ -25,6 +25,8 @@ services:
       API_HOST: 0.0.0.0
       API_PORT: "47301"
       DATABASE_URL: file:/data/zero-second.sqlite
+      # 予約の登録画面の公演情報の自動入力で、モックサイトの公演情報を読む（#43）
+      MOCK_SITE_URL: http://mock-site:47302
     volumes:
       - data:/data
     healthcheck:

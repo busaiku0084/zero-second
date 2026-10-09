@@ -32,6 +32,16 @@ export function findSite(id: string): Site | undefined {
   return SITES.find((s) => s.id === id);
 }
 
+/**
+ * 公演 URL から公演情報を自動で入れられるか（#43）。
+ *
+ * 自動化を許可しているサイト（automation: "auto"）だけ。"manual" のサイト（TicketDive・LivePocket）は
+ * 利用規約で BOT などの自動化手段や構造の解析を禁止しているので、プログラムでページを取りに行かない
+ */
+export function supportsEventInfo(site: Site): boolean {
+  return site.automation === "auto";
+}
+
 /** 公演 URL のホストが、サイトのホスト（またはそのサブドメイン）か */
 export function eventUrlMatchesSite(site: Site, eventUrl: string): boolean {
   let host: string;

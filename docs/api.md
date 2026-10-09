@@ -120,6 +120,20 @@
 - `startedAtMs` を省略すると販売開始時刻を使う。所要時間（`elapsedMs`）は「完了 + 時計のずれ（`clockOffsetMs`、無ければ 0）− 販売開始」（[ADR 0013](adr/0013-clock-sync-bisection-and-server-time-elapsed.md)）。販売開始より前に終わった実行（準備の段階での失敗など）は `null`
 - 実行の `driver` は、自動購入でワーカーがサイトを操作した方法（`http` / `browser`）。手動購入の記録は `null`（[ADR 0022](adr/0022-switchable-drivers-per-adapter.md)）
 
+### 公演情報の自動入力
+
+| メソッド | パス | 内容 |
+|---|---|---|
+| GET | `/event-info?site=&url=` | 公演 URL から公演名・席種・枚数の上限を読む（予約の登録画面の自動入力。[ADR 0023](adr/0023-event-info-autofill.md)） |
+
+```json
+{ "title": "モック公演「成功」", "ticketTypes": ["一般", "前方エリア"], "maxQuantity": 4 }
+```
+
+- 自動化を許可しているサイト（`automation: "auto"`）だけ。それ以外のサイトは 422（ページを取りに行かない）
+- URL がサイトと合わない・形が違う → 422、公演がない → 404、サイトにつながらない → 502
+- モックサイトは設定の `MOCK_SITE_URL` へ送る（予約の URL のホストへは送らない）。Sauce Demo は通信しない
+
 ### 購入前チェックリスト
 
 予約ごとの確認項目（[ADR 0019](adr/0019-checklist-copied-from-template.md)）。予約を作るとテンプレートの項目が入る。`GET /reservations/:id` の `checklist`、`GET /reservations` の `checklistTotal`・`checklistDone` で読める。
