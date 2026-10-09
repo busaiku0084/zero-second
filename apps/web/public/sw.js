@@ -12,6 +12,7 @@ self.addEventListener("push", (event) => {
     self.registration.showNotification(data.title || "zero-second", {
       body: data.body || "",
       tag: data.tag,
+      icon: "/icon-192.png",
       data: { url: data.url || "/" },
       requireInteraction: true,
     }),
