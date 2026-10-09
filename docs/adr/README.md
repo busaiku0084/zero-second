@@ -41,3 +41,4 @@
 | [0017](0017-notifications.md) | 通知は API のプロセスで作り、アプリ内・Web Push・Webhook で届ける | 採用 |
 | [0018](0018-browser-clock-correction.md) | 画面のカウントダウンは、web サーバーの時計とのずれを測って補正する | 採用 |
 | [0019](0019-checklist-copied-from-template.md) | 購入前チェックリストは、予約を作るときにテンプレートから写す | 採用 |
+| [0020](0020-user-management.md) | パスワードの再設定は管理者が発行するリンクで行い、ユーザーは削除せず停止する | 採用 |

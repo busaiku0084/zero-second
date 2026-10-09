@@ -29,9 +29,10 @@ export function createSession(db: Db, userId: number, now = Date.now()) {
 export function findSessionUser(db: Db, token: string, now = Date.now()): User | null {
   const row = db
     .prepare(
-      `SELECT users.id, users.login_id, users.role, users.created_at_ms
+      `SELECT users.*
        FROM sessions JOIN users ON users.id = sessions.user_id
-       WHERE sessions.token_hash = ? AND sessions.expires_at_ms > ?`,
+       WHERE sessions.token_hash = ? AND sessions.expires_at_ms > ?
+         AND users.disabled_at_ms IS NULL`,
     )
     .get(hashToken(token), now);
   return row ? toUser(row as Row) : null;

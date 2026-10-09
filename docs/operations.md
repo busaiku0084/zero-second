@@ -32,7 +32,13 @@ make dev-striker              # ワーカー（API がマイグレーション�
 - Discord / Slack: 設定画面に受信用 Webhook の URL を入れる
 - 届かないときは、設定画面の「テスト通知を送る」で経路ごとの結果を確かめる。通知の一覧にも送信結果が残る
 
-- パスワードを忘れた場合の画面はまだない。管理者のパスワードを忘れたときは、API を止めて DB の `users` を直接直すか、`sessions`・`users` を消して `/setup` からやり直す
+- パスワードを忘れたとき: 管理者が「ユーザー」画面の「再設定リンク」でリンクを作り、本人に渡す（24 時間・1 回限り。[ADR 0020](adr/0020-user-management.md)）
+- 管理者が 1 人しかいなくてパスワードを忘れたとき: サーバーでリンクを出す
+  ```bash
+  pnpm --filter @zero-second/api exec tsx src/cli.ts reset-link <ログイン ID>          # ホスト
+  docker compose exec api node_modules/.bin/tsx src/cli.ts reset-link <ログイン ID>     # Docker
+  ```
+- 使わなくなったユーザーは「停止」する（削除はしない）。ログイン・自動購入・リマインドが止まり、「再開」で戻る
 
 ## ポート
 

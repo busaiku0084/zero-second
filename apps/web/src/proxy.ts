@@ -2,7 +2,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import { SESSION_COOKIE } from "./lib/session-cookie";
 
 /** ログインなしで開ける画面 */
-const PUBLIC_PATHS = [/^\/login$/, /^\/setup$/, /^\/invite\/[^/]+$/];
+const PUBLIC_PATHS = [/^\/login$/, /^\/setup$/, /^\/invite\/[^/]+$/, /^\/reset\/[^/]+$/];
 
 /**
  * Cookie が無ければログイン画面へ移す（楽観的なチェック）。

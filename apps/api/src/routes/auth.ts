@@ -2,6 +2,7 @@ import { zValidator } from "@hono/zod-validator";
 import {
   loginSchema,
   passwordChangeSchema,
+  passwordResetSchema,
   type SessionResponse,
   signupSchema,
   type User,
@@ -11,6 +12,7 @@ import { createMiddleware } from "hono/factory";
 import { z } from "zod";
 import type { Db } from "../lib/db.js";
 import { dummyPasswordHash, hashPassword, verifyPassword } from "../lib/password.js";
+import { findOpenPasswordReset } from "../lib/password-reset.js";
 import { type Row, toUser } from "../lib/rows.js";
 import { createSession, deleteSession, findSessionUser, hashToken } from "../lib/session.js";
 import type { AppEnv } from "../types.js";
@@ -24,6 +26,8 @@ const PUBLIC_PATHS = [
   /^\/auth\/login$/,
   /^\/auth\/setup$/,
   /^\/auth\/invitations\/[^/]+$/,
+  // 管理者が発行したパスワードの再設定リンク（ADR 0020）
+  /^\/auth\/password-resets\/[^/]+$/,
 ];
 
 /** x-session-token のセッションを確かめ、c.var.user に入れる。無ければ 401 */
@@ -114,6 +118,9 @@ export const auth = new Hono<AppEnv>()
       return c.json({ error: "ログイン ID またはパスワードが違います" }, 401);
     }
     limiter.succeed(loginId);
+    if (row.disabled_at_ms !== null) {
+      return c.json({ error: "このユーザーは停止されています。管理者に連絡してください" }, 403);
+    }
     return c.json(sessionResponse(c.var.db, toUser(row)));
   })
   .get("/setup", (c) => c.json({ required: userCount(c.var.db) === 0 }))
@@ -172,6 +179,39 @@ export const auth = new Hono<AppEnv>()
         );
       }
       return c.json(result.session, 201);
+    },
+  )
+  .get("/password-resets/:token", zValidator("param", tokenParam, validationHook), (c) => {
+    const reset = findOpenPasswordReset(c.var.db, c.req.valid("param").token);
+    return c.json(reset ? { valid: true, loginId: reset.loginId } : { valid: false });
+  })
+  // 再設定リンクで新しいパスワードにする。そのユーザーのほかのセッションは消す
+  .post(
+    "/password-resets/:token",
+    zValidator("param", tokenParam, validationHook),
+    zValidator("json", passwordResetSchema, validationHook),
+    async (c) => {
+      const { token } = c.req.valid("param");
+      const passwordHash = await hashPassword(c.req.valid("json").password);
+      const db = c.var.db;
+      const session = transaction(db, () => {
+        const reset = findOpenPasswordReset(db, token);
+        if (!reset) return null;
+        const now = Date.now();
+        db.prepare("UPDATE users SET password_hash = ?, updated_at_ms = ? WHERE id = ?").run(
+          passwordHash,
+          now,
+          reset.userId,
+        );
+        db.prepare("UPDATE password_resets SET used_at_ms = ? WHERE id = ?").run(now, reset.id);
+        db.prepare("DELETE FROM sessions WHERE user_id = ?").run(reset.userId);
+        const user = toUser(
+          db.prepare("SELECT * FROM users WHERE id = ?").get(reset.userId) as Row,
+        );
+        return sessionResponse(db, user);
+      });
+      if (!session) return c.json({ error: "再設定リンクが無効か、期限が切れています" }, 404);
+      return c.json(session);
     },
   )
   .get("/me", (c) => c.json(c.var.user))

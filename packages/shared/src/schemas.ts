@@ -171,6 +171,17 @@ export const passwordChangeSchema = z.object({
   newPassword,
 });
 
+export const passwordResetSchema = z.object({ password: newPassword });
+
+/** 管理者がほかのユーザーを変える（停止・再開、権限） */
+export const userUpdateSchema = z
+  .object({
+    disabled: z.boolean(),
+    role: z.enum(USER_ROLES),
+  })
+  .partial()
+  .refine((v) => Object.keys(v).length > 0, "更新する項目がありません");
+
 export const invitationCreateSchema = z.object({
   note: z.string().trim().max(100).default(""),
 });

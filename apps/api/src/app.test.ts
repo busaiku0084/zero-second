@@ -4,6 +4,7 @@ import type {
   ChecklistItem,
   DashboardSummary,
   InvitationCreated,
+  PasswordResetCreated,
   Reservation,
   ReservationListItem,
   Run,
@@ -499,5 +500,104 @@ describe("購入前チェックリスト", () => {
     await json("DELETE", `/reservations/${r.id}`);
     const n = db.prepare("SELECT COUNT(*) AS n FROM checklist_items").get() as { n: number };
     expect(Number(n.n)).toBe(0);
+  });
+});
+
+describe("ユーザー管理", () => {
+  async function member(loginId = "friend") {
+    const s = await inviteMember(loginId);
+    return { token: s.token, id: s.user.id };
+  }
+
+  it("再設定リンクで新しいパスワードにでき、ほかのセッションは無効になる", async () => {
+    const m = await member();
+    const res = await json("POST", `/users/${m.id}/password-reset`);
+    expect(res.status).toBe(201);
+    const { token } = (await res.json()) as PasswordResetCreated;
+    expect(await (await get(`/auth/password-resets/${token}`, null)).json()).toEqual({
+      valid: true,
+      loginId: "friend",
+    });
+
+    const reset = await json(
+      "POST",
+      `/auth/password-resets/${token}`,
+      { password: "brand-new-pass" },
+      null,
+    );
+    expect(reset.status).toBe(200);
+    expect(((await reset.json()) as SessionResponse).user.loginId).toBe("friend");
+    expect((await get("/auth/me", m.token)).status).toBe(401);
+    const login = await json(
+      "POST",
+      "/auth/login",
+      { loginId: "friend", password: "brand-new-pass" },
+      null,
+    );
+    expect(login.status).toBe(200);
+    // 1 回だけ使える
+    const again = await json(
+      "POST",
+      `/auth/password-resets/${token}`,
+      { password: "x".repeat(12) },
+      null,
+    );
+    expect(again.status).toBe(404);
+  });
+
+  it("新しいリンクを出すと、前のリンクは使えない。期限切れも使えない", async () => {
+    const m = await member();
+    const first = (await (
+      await json("POST", `/users/${m.id}/password-reset`)
+    ).json()) as PasswordResetCreated;
+    const second = (await (
+      await json("POST", `/users/${m.id}/password-reset`)
+    ).json()) as PasswordResetCreated;
+    expect(await (await get(`/auth/password-resets/${first.token}`, null)).json()).toEqual({
+      valid: false,
+    });
+    db.prepare("UPDATE password_resets SET expires_at_ms = 0").run();
+    expect(await (await get(`/auth/password-resets/${second.token}`, null)).json()).toEqual({
+      valid: false,
+    });
+  });
+
+  it("停止するとログイン・セッション・再設定リンクが使えず、再開すると戻る", async () => {
+    const m = await member();
+    const patch = await json("PATCH", `/users/${m.id}`, { disabled: true });
+    expect(((await patch.json()) as User).disabledAtMs).not.toBeNull();
+    expect((await get("/auth/me", m.token)).status).toBe(401);
+    const login = await json(
+      "POST",
+      "/auth/login",
+      { loginId: "friend", password: "member-pass-1" },
+      null,
+    );
+    expect(login.status).toBe(403);
+    expect((await json("POST", `/users/${m.id}/password-reset`)).status).toBe(409);
+
+    await json("PATCH", `/users/${m.id}`, { disabled: false });
+    const again = await json(
+      "POST",
+      "/auth/login",
+      { loginId: "friend", password: "member-pass-1" },
+      null,
+    );
+    expect(again.status).toBe(200);
+  });
+
+  it("権限を変えられる。自分自身は変えられず、メンバーは使えない", async () => {
+    const m = await member();
+    const me = (await (await get("/auth/me")).json()) as User;
+    expect((await json("PATCH", `/users/${me.id}`, { role: "member" })).status).toBe(409);
+    expect((await json("PATCH", `/users/${me.id}`, { disabled: true })).status).toBe(409);
+    expect((await json("PATCH", `/users/${m.id}`, { role: "admin" }, m.token)).status).toBe(403);
+    expect((await json("POST", `/users/${me.id}/password-reset`, undefined, m.token)).status).toBe(
+      403,
+    );
+
+    const promoted = await json("PATCH", `/users/${m.id}`, { role: "admin" });
+    expect(((await promoted.json()) as User).role).toBe("admin");
+    expect((await get("/users", m.token)).status).toBe(200);
   });
 });
