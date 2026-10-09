@@ -12,7 +12,13 @@ use crate::metrics::RequestTiming;
 use crate::model::{Reservation, ReservationStatus, RunFinish};
 
 /// ワーカーが前提にするマイグレーション（これ以降が適用済みであること）
-const REQUIRED_MIGRATION: &str = "0002_manual_mode.sql";
+const REQUIRED_MIGRATION: &str = "0003_users.sql";
+
+/// accounts の 1 行（パスワードは暗号化されたまま）
+pub struct StoredAccount {
+    pub login_id: String,
+    pub encrypted_credentials: Vec<u8>,
+}
 
 pub struct Db {
     conn: Mutex<Connection>,
@@ -104,6 +110,41 @@ impl Db {
             })?
             .collect::<Result<Vec<_>, _>>()?;
         Ok(rows)
+    }
+
+    /// 予約に紐づくアカウントのログイン ID と暗号化されたパスワード。
+    ///
+    /// 予約と同じユーザー・同じサイトのアカウントだけを返す（ADR 0016）。API でも登録時に確かめているが、
+    /// ワーカーでもほかの人のログイン情報を使わないように確かめる。アカウントを指定していなければ None
+    pub fn account_for(&self, reservation_id: i64) -> anyhow::Result<Option<StoredAccount>> {
+        let conn = self.conn()?;
+        /// (account_id, accounts.login_id, accounts.encrypted_credentials)
+        type Row = (Option<i64>, Option<String>, Option<Vec<u8>>);
+        let row: Option<Row> = conn
+            .query_row(
+                "SELECT reservations.account_id, accounts.login_id, accounts.encrypted_credentials
+                 FROM reservations
+                 LEFT JOIN accounts ON accounts.id = reservations.account_id
+                                   AND accounts.user_id IS reservations.user_id
+                                   AND accounts.site = reservations.site
+                 WHERE reservations.id = ?",
+                [reservation_id],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+            )
+            .optional()?;
+        match row {
+            None => bail!("予約 {reservation_id} が見つかりません"),
+            Some((None, _, _)) => Ok(None),
+            Some((Some(_), Some(login_id), Some(encrypted_credentials))) => {
+                Ok(Some(StoredAccount {
+                    login_id,
+                    encrypted_credentials,
+                }))
+            }
+            Some((Some(_), _, _)) => {
+                bail!("予約のアカウントが見つからないか、予約の持ち主・サイトのものではありません")
+            }
+        }
     }
 
     /// pending → preparing。更新できた（= このワーカーが取った）ときだけ true
@@ -237,6 +278,39 @@ pub mod testing {
         conn.last_insert_rowid()
     }
 
+    pub fn insert_user(db: &Db, login_id: &str) -> i64 {
+        let conn = db.conn().unwrap();
+        conn.execute(
+            "INSERT INTO users (login_id, password_hash, role, created_at_ms, updated_at_ms)
+             VALUES (?, 'x', 'member', 0, 0)",
+            [login_id],
+        )
+        .unwrap();
+        conn.last_insert_rowid()
+    }
+
+    pub fn insert_account(db: &Db, user_id: i64, site: &str, encrypted: &[u8]) -> i64 {
+        let conn = db.conn().unwrap();
+        conn.execute(
+            "INSERT INTO accounts (user_id, site, login_id, encrypted_credentials, created_at_ms, updated_at_ms)
+             VALUES (?, ?, 'me@example.com', ?, 0, 0)",
+            params![user_id, site, encrypted],
+        )
+        .unwrap();
+        conn.last_insert_rowid()
+    }
+
+    /// 予約の持ち主とアカウントを設定する
+    pub fn set_owner(db: &Db, reservation_id: i64, user_id: i64, account_id: Option<i64>) {
+        db.conn()
+            .unwrap()
+            .execute(
+                "UPDATE reservations SET user_id = ?, account_id = ? WHERE id = ?",
+                params![user_id, account_id, reservation_id],
+            )
+            .unwrap();
+    }
+
     pub fn status_of(db: &Db, reservation_id: i64) -> String {
         db.conn()
             .unwrap()
@@ -280,6 +354,31 @@ mod tests {
         insert_reservation(&db, "ticketdive", "manual", now); // 手動
         let got = db.due_reservations(now, 120_000).unwrap();
         assert_eq!(got.iter().map(|r| r.id).collect::<Vec<_>>(), vec![due]);
+    }
+
+    #[test]
+    fn account_for_returns_only_the_owners_account_of_the_same_site() {
+        let db = migrated_db();
+        let me = insert_user(&db, "me");
+        let other = insert_user(&db, "other");
+        let id = insert_reservation(&db, "mock", "auto", 0);
+
+        set_owner(&db, id, me, None);
+        assert!(db.account_for(id).unwrap().is_none());
+
+        let mine = insert_account(&db, me, "mock", b"enc");
+        set_owner(&db, id, me, Some(mine));
+        let account = db.account_for(id).unwrap().unwrap();
+        assert_eq!(account.login_id, "me@example.com");
+        assert_eq!(account.encrypted_credentials, b"enc");
+
+        // ほかのユーザーのアカウント・別サイトのアカウントは使わない
+        let theirs = insert_account(&db, other, "mock", b"enc");
+        set_owner(&db, id, me, Some(theirs));
+        assert!(db.account_for(id).is_err());
+        let other_site = insert_account(&db, me, "ticketdive", b"enc");
+        set_owner(&db, id, me, Some(other_site));
+        assert!(db.account_for(id).is_err());
     }
 
     #[test]

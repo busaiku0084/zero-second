@@ -1,16 +1,18 @@
 //! 予約 1 件の購入処理（docs/architecture.md「自動購入の流れ」）。
 //!
-//! login → prepare → 時刻合わせ → 販売開始まで待機 → purchase（RetryPolicy の範囲で再試行）→ 保存
+//! ログイン情報の復号 → login → prepare → 時刻合わせ → 販売開始まで待機
+//! → purchase（RetryPolicy の範囲で再試行）→ 保存
 
 use anyhow::Context;
 
 use crate::clock::{self, now_ms};
+use crate::crypto::CredentialKey;
 use crate::db::Db;
 use crate::http::TimedClient;
 use crate::metrics::Phase;
 use crate::model::{PurchaseOutcome, Reservation, ReservationStatus, RunFinish, RunResult};
 use crate::retry::RetryPolicy;
-use crate::site::{SiteContext, SiteError, TicketSite};
+use crate::site::{Credentials, SiteContext, SiteError, TicketSite};
 
 /// 時刻合わせで送るリクエストの上限（1 回ごとに範囲がおよそ半分になる。1 秒 → 約 8ms）
 const CLOCK_PROBES: u32 = 8;
@@ -23,6 +25,7 @@ pub async fn execute(
     site: &dyn TicketSite,
     reservation: Reservation,
     policy: &RetryPolicy,
+    credential_key: Option<&CredentialKey>,
 ) -> anyhow::Result<RunResult> {
     let run_id = db.create_run(reservation.id, now_ms())?;
     let reservation_id = reservation.id;
@@ -30,12 +33,17 @@ pub async fn execute(
     let mut ctx = SiteContext {
         reservation,
         http: TimedClient::new().context("HTTP クライアントを作れません")?,
-        // TODO(#4): accounts から読み、CREDENTIALS_ENCRYPTION_KEY で復号する（ADR 0008）
         credentials: None,
     };
 
     let mut clock_offset_ms = None;
-    let result = run_steps(db, site, &mut ctx, policy, &mut clock_offset_ms).await;
+    let result = match load_credentials(db, site, reservation_id, credential_key) {
+        Ok(credentials) => {
+            ctx.credentials = credentials;
+            run_steps(db, site, &mut ctx, policy, &mut clock_offset_ms).await
+        }
+        Err(e) => Err(e),
+    };
 
     let (run_result, error, outcome) = match result {
         Ok(outcome) => (RunResult::Succeeded, None, Some(outcome)),
@@ -69,6 +77,35 @@ pub async fn execute(
         "実行が終わりました"
     );
     Ok(run_result)
+}
+
+/// 予約のアカウントを読み、パスワードを復号する（ADR 0008, 0016）
+fn load_credentials(
+    db: &Db,
+    site: &dyn TicketSite,
+    reservation_id: i64,
+    key: Option<&CredentialKey>,
+) -> Result<Option<Credentials>, SiteError> {
+    let Some(account) = db.account_for(reservation_id).map_err(SiteError::Other)? else {
+        if site.requires_credentials() {
+            return Err(SiteError::Other(anyhow::anyhow!(
+                "このサイトの自動購入にはアカウントの指定が必要です"
+            )));
+        }
+        return Ok(None);
+    };
+    let key = key.ok_or_else(|| {
+        SiteError::Other(anyhow::anyhow!(
+            "CREDENTIALS_ENCRYPTION_KEY が設定されていないため、アカウントを使えません"
+        ))
+    })?;
+    let password = key
+        .decrypt(&account.encrypted_credentials)
+        .map_err(SiteError::Other)?;
+    Ok(Some(Credentials {
+        login_id: account.login_id,
+        password,
+    }))
 }
 
 async fn run_steps(
@@ -130,18 +167,84 @@ mod tests {
     }
 
     async fn run_with(behavior: FakeBehavior) -> (Db, i64, RunResult) {
-        let db = migrated_db();
-        let id = insert_reservation(&db, "mock", "auto", now_ms() + 20);
-        let reservation = db.due_reservations(now_ms(), 60_000).unwrap().remove(0);
-        assert!(db.claim(id).unwrap());
         let site = FakeSite {
             behavior,
             ..FakeSite::default()
         };
-        let result = execute(&db, &site, reservation, &fast_policy())
+        run_site(&site, |_, _| {}, None).await
+    }
+
+    /// 予約を 1 件作り（setup で持ち主などを設定）、site で実行する
+    async fn run_site(
+        site: &FakeSite,
+        setup: impl FnOnce(&Db, i64),
+        key: Option<&CredentialKey>,
+    ) -> (Db, i64, RunResult) {
+        let db = migrated_db();
+        let id = insert_reservation(&db, "mock", "auto", now_ms() + 20);
+        setup(&db, id);
+        let reservation = db.due_reservations(now_ms(), 60_000).unwrap().remove(0);
+        assert!(db.claim(id).unwrap());
+        let result = execute(&db, site, reservation, &fast_policy(), key)
             .await
             .unwrap();
         (db, id, result)
+    }
+
+    fn key() -> CredentialKey {
+        CredentialKey::parse("AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=").unwrap()
+    }
+
+    /// 持ち主のアカウント（パスワードは "p@ss"）を予約に紐づける
+    fn with_account(db: &Db, id: i64) {
+        let user = insert_user(db, "me");
+        let account = insert_account(db, user, "mock", &key().encrypt("p@ss", [3; 12]));
+        set_owner(db, id, user, Some(account));
+    }
+
+    #[tokio::test]
+    async fn decrypted_credentials_are_passed_to_the_site() {
+        let site = FakeSite {
+            expected_password: Some("p@ss"),
+            ..FakeSite::default()
+        };
+        let (_, _, result) = run_site(&site, with_account, Some(&key())).await;
+        assert_eq!(result, RunResult::Succeeded);
+    }
+
+    #[tokio::test]
+    async fn missing_key_or_account_fails_before_login() {
+        let site = FakeSite {
+            expected_password: Some("p@ss"),
+            ..FakeSite::default()
+        };
+        let (db, id, result) = run_site(&site, with_account, None).await;
+        assert_eq!(result, RunResult::Failed);
+        assert!(
+            last_run(&db, id)
+                .1
+                .unwrap()
+                .contains("CREDENTIALS_ENCRYPTION_KEY")
+        );
+
+        let (db, id, result) = run_site(&site, |_, _| {}, Some(&key())).await;
+        assert_eq!(result, RunResult::Failed);
+        assert!(
+            last_run(&db, id)
+                .1
+                .unwrap()
+                .contains("アカウントの指定が必要")
+        );
+    }
+
+    #[tokio::test]
+    async fn wrong_key_fails() {
+        let site = FakeSite::default();
+        // 0x02 × 32（登録時と違う鍵）
+        let other = CredentialKey::parse("AgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgI=").unwrap();
+        let (db, id, result) = run_site(&site, with_account, Some(&other)).await;
+        assert_eq!(result, RunResult::Failed);
+        assert!(last_run(&db, id).1.unwrap().contains("復号できません"));
     }
 
     #[tokio::test]

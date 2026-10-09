@@ -5,6 +5,8 @@ use std::time::Duration;
 
 use anyhow::{Context, bail};
 
+use crate::crypto::CredentialKey;
+
 #[derive(Debug, Clone)]
 pub struct Config {
     pub database_path: PathBuf,
@@ -13,6 +15,9 @@ pub struct Config {
     /// 販売開始のどれだけ前に準備を始めるか
     pub lead: Duration,
     pub sites: SitesConfig,
+    /// サイトのログイン情報を復号する鍵（`CREDENTIALS_ENCRYPTION_KEY`、API と同じ値）。
+    /// 未設定なら、アカウントを指定した予約は失敗にする
+    pub credential_key: Option<CredentialKey>,
 }
 
 /// アダプタごとの設定。アダプタを足したら、必要な項目をここに足す
@@ -37,6 +42,10 @@ impl Config {
                 mock_url: get("MOCK_SITE_URL")
                     .filter(|v| !v.trim().is_empty())
                     .unwrap_or_else(|| "http://127.0.0.1:47302".into()),
+            },
+            credential_key: match get("CREDENTIALS_ENCRYPTION_KEY") {
+                Some(v) if !v.trim().is_empty() => Some(CredentialKey::parse(&v)?),
+                _ => None,
             },
         })
     }
@@ -92,6 +101,19 @@ mod tests {
         .unwrap();
         assert_eq!(c.database_path, PathBuf::from("/tmp/x.sqlite"));
         assert_eq!(c.lead, Duration::from_secs(5));
+    }
+
+    #[test]
+    fn credential_key_is_optional_but_validated() {
+        assert!(config(&[]).unwrap().credential_key.is_none());
+        let key = "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=";
+        assert!(
+            config(&[("CREDENTIALS_ENCRYPTION_KEY", key)])
+                .unwrap()
+                .credential_key
+                .is_some()
+        );
+        assert!(config(&[("CREDENTIALS_ENCRYPTION_KEY", "short")]).is_err());
     }
 
     #[test]

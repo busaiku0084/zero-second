@@ -22,7 +22,6 @@ pub enum SiteError {
 }
 
 /// ログイン情報（復号済み）。ログや DB に書かない
-#[expect(dead_code, reason = "TODO(#4): ログインに対応したアダプタで使う")]
 pub struct Credentials {
     pub login_id: String,
     pub password: String,
@@ -41,7 +40,7 @@ impl std::fmt::Debug for Credentials {
 pub struct SiteContext {
     pub reservation: Reservation,
     pub http: TimedClient,
-    #[expect(dead_code, reason = "TODO(#4): ログインに対応したアダプタで使う")]
+    /// 予約に指定したアカウントのログイン情報（復号済み）。アカウントを指定していなければ None
     pub credentials: Option<Credentials>,
 }
 
@@ -55,7 +54,13 @@ pub trait TicketSite: Send + Sync {
         RetryPolicy::default()
     }
 
-    /// サーバー時刻を測るための URL（Date ヘッダーを返すもの）。None なら端末の時計を使う
+    /// ログインにアカウント（ID とパスワード）が要るか。true なら、アカウントのない予約は login の前に失敗にする
+    fn requires_credentials(&self) -> bool {
+        false
+    }
+
+    /// サーバー時刻を測るための URL（Date ヘッダーを返すもの）。None なら端末の時計を使う。
+    /// 販売開始の 0.5 秒前まで送るので、同じホストなら接続を温める役目も兼ねる
     fn clock_probe_url(&self, _reservation: &Reservation) -> Option<String> {
         None
     }

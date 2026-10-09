@@ -29,3 +29,4 @@
 
 - 鍵をなくすと、登録済みのパスワードは復号できない（登録し直す）
 - 鍵を変えるときは、全アカウントの再暗号化が必要（手順は `docs/operations.md`）
+- ワーカーは RustCrypto の `aes-gcm` クレートで復号する（`crates/striker/src/crypto.rs`）。API で暗号化した値を復号できることをテストで確かめている。復号には API と同じ `CREDENTIALS_ENCRYPTION_KEY` を使う

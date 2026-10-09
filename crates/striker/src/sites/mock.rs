@@ -126,11 +126,12 @@ impl TicketSite for MockSite {
     }
 
     async fn login(&self, ctx: &mut SiteContext) -> Result<(), SiteError> {
-        let request = ctx
-            .http
-            .inner()
-            .post(self.url("/api/login"))
-            .json(&json!({}));
+        // アカウントを指定していればログイン情報を送る（モックはどの値でも受け付ける。アカウントは任意）
+        let body = match &ctx.credentials {
+            Some(c) => json!({ "loginId": c.login_id, "password": c.password }),
+            None => json!({}),
+        };
+        let request = ctx.http.inner().post(self.url("/api/login")).json(&body);
         let response = send(ctx, request).await?;
         expect_success(response, "ログイン").await?;
         Ok(())

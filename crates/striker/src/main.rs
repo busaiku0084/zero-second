@@ -1,6 +1,7 @@
 //! striker: 自動購入に対応したサイトの予約を、販売開始時刻に購入するワーカー。
 //!
 //! - config.rs    環境変数からの設定
+//! - crypto.rs    サイトのログイン情報の復号
 //! - db.rs        予約の取得・結果の保存（SQLite を API と共有）
 //! - scheduler.rs 予約のポーリングとタスクの起動
 //! - executor.rs  予約 1 件の購入処理
@@ -12,6 +13,7 @@
 
 mod clock;
 mod config;
+mod crypto;
 mod db;
 mod executor;
 mod http;
