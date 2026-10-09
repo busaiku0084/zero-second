@@ -1,6 +1,9 @@
 import type {
   Account,
+  DeliveryStatus,
   Invitation,
+  Notification,
+  NotificationKind,
   PaymentMethod,
   Reservation,
   ReservationMode,
@@ -15,6 +18,16 @@ import type {
 
 /** node:sqlite の行（列名 → 値） */
 export type Row = Record<string, unknown>;
+
+/** reservations.reminder_minutes（JSON の配列）。壊れていたら通知しない */
+export function reminderMinutes(v: unknown): number[] {
+  try {
+    const parsed: unknown = JSON.parse(String(v ?? "[]"));
+    return Array.isArray(parsed) ? parsed.filter((n): n is number => Number.isInteger(n)) : [];
+  } catch {
+    return [];
+  }
+}
 
 const num = (v: unknown): number => Number(v);
 const numOrNull = (v: unknown): number | null => (v === null || v === undefined ? null : Number(v));
@@ -44,6 +57,7 @@ export function toReservation(r: Row): Reservation {
     saleStartsAtMs: num(r.sale_starts_at_ms),
     mode: str(r.mode) as ReservationMode,
     notes: str(r.notes),
+    reminderMinutes: reminderMinutes(r.reminder_minutes),
     status: str(r.status) as ReservationStatus,
     createdAtMs: num(r.created_at_ms),
     updatedAtMs: num(r.updated_at_ms),
@@ -120,5 +134,20 @@ export function toInvitation(r: Row): Invitation {
     expiresAtMs: num(r.expires_at_ms),
     acceptedByLoginId: strOrNull(r.accepted_by_login_id),
     acceptedAtMs: numOrNull(r.accepted_at_ms),
+  };
+}
+
+export function toNotification(r: Row): Notification {
+  return {
+    id: num(r.id),
+    reservationId: numOrNull(r.reservation_id),
+    kind: str(r.kind) as NotificationKind,
+    title: str(r.title),
+    body: str(r.body),
+    url: str(r.url),
+    pushStatus: strOrNull(r.push_status) as DeliveryStatus | null,
+    webhookStatus: strOrNull(r.webhook_status) as DeliveryStatus | null,
+    createdAtMs: num(r.created_at_ms),
+    readAtMs: numOrNull(r.read_at_ms),
   };
 }

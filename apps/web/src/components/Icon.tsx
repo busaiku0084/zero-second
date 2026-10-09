@@ -8,6 +8,7 @@ const PATHS: Record<IconName, string> = {
   hand: "M8 4v5M8 11.5v.5M14 8A6 6 0 1 1 2 8a6 6 0 0 1 12 0Z",
   slash: "M3.8 12.2 12.2 3.8M14 8A6 6 0 1 1 2 8a6 6 0 0 1 12 0Z",
   sold: "M2.5 8h11M14 8A6 6 0 1 1 2 8a6 6 0 0 1 12 0Z",
+  bell: "M4 11V7.5a4 4 0 0 1 8 0V11l1.2 1.5H2.8L4 11ZM6.5 14.2h3",
 };
 
 export function Icon({ name, size = 14 }: { name: IconName; size?: number }) {

@@ -1,8 +1,14 @@
-import type { ReservationMode, ReservationStatus, RunResult, UserRole } from "@zero-second/shared";
+import type {
+  NotificationKind,
+  ReservationMode,
+  ReservationStatus,
+  RunResult,
+  UserRole,
+} from "@zero-second/shared";
 
 /** 状態は色だけで伝えない。アイコン + ラベルを必ず一緒に出す */
 export type Tone = "neutral" | "info" | "good" | "warning" | "serious" | "critical";
-export type IconName = "clock" | "spinner" | "check" | "cross" | "hand" | "slash" | "sold";
+export type IconName = "clock" | "spinner" | "check" | "cross" | "hand" | "slash" | "sold" | "bell";
 
 type Label = { label: string; tone: Tone; icon: IconName };
 
@@ -32,6 +38,13 @@ export const PAYMENT_LABELS = {
   convenience_store: "コンビニ払い",
 } as const;
 
+/** 通知のタイミング（販売開始の何分前か） */
+export function reminderLabel(minutes: number): string {
+  if (minutes % 1440 === 0) return `${minutes / 1440} 日前`;
+  if (minutes % 60 === 0) return `${minutes / 60} 時間前`;
+  return `${minutes} 分前`;
+}
+
 export const ROLE_LABELS: Record<UserRole, string> = {
   admin: "管理者",
   member: "メンバー",
@@ -42,3 +55,11 @@ export const INVITATION_LABELS = {
   accepted: { label: "登録済み", tone: "good", icon: "check" },
   expired: { label: "期限切れ", tone: "neutral", icon: "slash" },
 } as const satisfies Record<string, Label>;
+
+export const NOTIFICATION_LABELS = {
+  reminder: { label: "リマインド", tone: "info", icon: "bell" },
+  needs_human: { label: "要対応", tone: "warning", icon: "hand" },
+  succeeded: { label: "購入済み", tone: "good", icon: "check" },
+  failed: { label: "購入できず", tone: "critical", icon: "cross" },
+  test: { label: "テスト", tone: "neutral", icon: "bell" },
+} as const satisfies Record<NotificationKind, Label>;

@@ -4,9 +4,12 @@ import { bearerAuth } from "hono/bearer-auth";
 import { HTTPException } from "hono/http-exception";
 import type { Db } from "./lib/db.js";
 import { LoginLimiter } from "./lib/rate-limit.js";
+import { realSenders, type Senders, type VapidConfig } from "./notify/channels.js";
+import { NotificationService } from "./notify/service.js";
 import { accounts } from "./routes/accounts.js";
 import { auth, requireSession } from "./routes/auth.js";
 import { dashboard } from "./routes/dashboard.js";
+import { notifications } from "./routes/notifications.js";
 import { reservations } from "./routes/reservations.js";
 import { runs } from "./routes/runs.js";
 import { invitations, users } from "./routes/users.js";
@@ -18,6 +21,14 @@ export type AppOptions = {
   /** 設定時は Authorization: Bearer <token> を必須にする */
   apiToken?: string;
   loginLimiter?: LoginLimiter;
+  /** Web Push の鍵（未設定ならブラウザ通知は使わない） */
+  vapid?: VapidConfig | null;
+  /** 通知の送り方（テストで差し替える） */
+  senders?: Senders;
+  /** 通知から開く web の URL のもと */
+  appUrl?: string;
+  /** Notifier と共有するとき（index.ts）に渡す。無ければ作る */
+  notificationService?: NotificationService;
 };
 
 export function createApp({
@@ -25,6 +36,10 @@ export function createApp({
   encryptionKey,
   apiToken,
   loginLimiter = new LoginLimiter(),
+  vapid = null,
+  senders = realSenders(vapid),
+  appUrl = "http://127.0.0.1:47300",
+  notificationService = new NotificationService(db, encryptionKey, senders, appUrl),
 }: AppOptions) {
   const app = new Hono<AppEnv>();
 
@@ -36,6 +51,8 @@ export function createApp({
     c.set("db", db);
     c.set("encryptionKey", encryptionKey);
     c.set("loginLimiter", loginLimiter);
+    c.set("notifications", notificationService);
+    c.set("pushPublicKey", vapid?.publicKey ?? null);
     await next();
   });
 
@@ -56,7 +73,8 @@ export function createApp({
     .route("/accounts", accounts)
     .route("/reservations", reservations)
     .route("/runs", runs)
-    .route("/dashboard", dashboard);
+    .route("/dashboard", dashboard)
+    .route("/notifications", notifications);
 }
 
 export type App = ReturnType<typeof createApp>;

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { reservationCreateSchema } from "./schemas";
+import { reservationCreateSchema, reservationUpdateSchema, webhookKind } from "./schemas";
 
 const base = {
   site: "ticketdive",
@@ -44,5 +44,29 @@ describe("reservationCreateSchema", () => {
     const r = reservationCreateSchema.safeParse({ ...base, eventUrl: "not-a-url" });
     expect(r.success).toBe(false);
     expect(r.error?.issues[0]?.message).toMatch(/[ぁ-んァ-ン一-龥]/);
+  });
+});
+
+describe("reservationUpdateSchema", () => {
+  it("送った項目だけを返す（既定値で上書きしない）", () => {
+    expect(reservationUpdateSchema.parse({ status: "cancelled" })).toEqual({ status: "cancelled" });
+    expect(reservationUpdateSchema.parse({ quantity: 2 })).toEqual({ quantity: 2 });
+  });
+});
+
+describe("通知", () => {
+  it("通知のタイミングは重複を除いて多い順にする。既定は 30 分前・5 分前", () => {
+    expect(reservationCreateSchema.parse(base).reminderMinutes).toEqual([30, 5]);
+    expect(
+      reservationCreateSchema.parse({ ...base, reminderMinutes: [5, 60, 5] }).reminderMinutes,
+    ).toEqual([60, 5]);
+  });
+
+  it("Webhook は Discord・Slack の URL だけ", () => {
+    expect(webhookKind("https://discord.com/api/webhooks/1/abc")).toBe("discord");
+    expect(webhookKind("https://hooks.slack.com/services/T/B/x")).toBe("slack");
+    expect(webhookKind("http://discord.com/api/webhooks/1/abc")).toBeNull();
+    expect(webhookKind("https://discord.com.evil.example/api/webhooks/")).toBeNull();
+    expect(webhookKind("http://api:47301/")).toBeNull();
   });
 });

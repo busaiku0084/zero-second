@@ -24,6 +24,9 @@ import { fromJstInput } from "@/lib/format";
 
 export async function createReservation(_prev: FormState, formData: FormData): Promise<FormState> {
   const values = formValues(formData);
+  // チェックボックスは同じ名前で複数届く。フォームに戻すときはカンマ区切りにする
+  const reminders = formData.getAll("reminderMinutes").map(Number);
+  values.reminderMinutes = reminders.join(",");
   const saleStartsAtMs = fromJstInput(values.saleStartsAt ?? "");
   const parsed = reservationCreateSchema.safeParse({
     site: values.site,
@@ -36,6 +39,7 @@ export async function createReservation(_prev: FormState, formData: FormData): P
     saleStartsAtMs: saleStartsAtMs ?? 0,
     mode: values.mode,
     notes: values.notes ?? "",
+    reminderMinutes: reminders,
   });
   if (!parsed.success || saleStartsAtMs === null) {
     const fieldErrors = parsed.success ? {} : zodErrors(parsed.error);

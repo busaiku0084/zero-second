@@ -2,15 +2,18 @@
 
 import {
   type Account,
+  DEFAULT_REMINDER_MINUTES,
   MOCK_SCENARIOS,
   type MockScenarioId,
   mockEventUrl,
+  REMINDER_MINUTE_OPTIONS,
   type Site,
 } from "@zero-second/shared";
 import { useActionState, useState } from "react";
 import { createReservation } from "@/app/actions";
 import type { FormState } from "@/lib/form";
 import { toJstInput } from "@/lib/format";
+import { reminderLabel } from "@/lib/labels";
 import { Field, FormMessage } from "./Field";
 import { SubmitButton } from "./SubmitButton";
 
@@ -34,6 +37,10 @@ export function ReservationForm({
   const [eventUrl, setEventUrl] = useState(v.eventUrl ?? "");
   const [saleStartsAt, setSaleStartsAt] = useState(v.saleStartsAt ?? defaultSaleStartsAt);
   const scenario = MOCK_SCENARIOS.find((s) => mockEventUrl(s.id) === eventUrl);
+  const reminders =
+    v.reminderMinutes === undefined
+      ? DEFAULT_REMINDER_MINUTES
+      : v.reminderMinutes.split(",").filter(Boolean).map(Number);
 
   function selectSite(id: string) {
     setSiteId(id);
@@ -214,6 +221,27 @@ export function ReservationForm({
           </label>
         </div>
         {e.mode ? <p className="field-error">{e.mode}</p> : null}
+      </fieldset>
+
+      <fieldset className="field">
+        <legend>通知</legend>
+        <div className="check-row">
+          {REMINDER_MINUTE_OPTIONS.map((m) => (
+            <label key={m} className="check">
+              <input
+                type="checkbox"
+                name="reminderMinutes"
+                value={m}
+                defaultChecked={reminders.includes(m)}
+              />
+              {reminderLabel(m)}
+            </label>
+          ))}
+        </div>
+        <p className="field-hint">
+          販売開始前に、アプリ内の通知と設定した届け先（ブラウザ・Discord・Slack）で知らせます
+        </p>
+        {e.reminderMinutes ? <p className="field-error">{e.reminderMinutes}</p> : null}
       </fieldset>
 
       <Field id="notes" label="メモ" hint="当日の手順や同行者のことなど" wide>

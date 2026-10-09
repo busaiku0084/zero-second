@@ -75,8 +75,8 @@ export const reservations = new Hono<AppEnv>()
       .prepare(
         `INSERT INTO reservations (
            user_id, account_id, site, title, event_url, ticket_type, quantity, payment_method,
-           sale_starts_at_ms, mode, notes, status, created_at_ms, updated_at_ms
-         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?) RETURNING *`,
+           sale_starts_at_ms, mode, notes, reminder_minutes, status, created_at_ms, updated_at_ms
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?) RETURNING *`,
       )
       .get(
         c.var.user.id,
@@ -90,6 +90,7 @@ export const reservations = new Hono<AppEnv>()
         body.saleStartsAtMs,
         body.mode,
         body.notes,
+        JSON.stringify(body.reminderMinutes),
         now,
         now,
       );
@@ -141,6 +142,10 @@ export const reservations = new Hono<AppEnv>()
         if (value === undefined) continue;
         sets.push(`${column} = ?`);
         values.push(value);
+      }
+      if (body.reminderMinutes !== undefined) {
+        sets.push("reminder_minutes = ?");
+        values.push(JSON.stringify(body.reminderMinutes));
       }
       sets.push("updated_at_ms = ?");
       values.push(Date.now());

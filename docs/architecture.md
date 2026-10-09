@@ -21,6 +21,7 @@
 ```
 
 - ブラウザは API を直接呼ばない（[ADR 0009](adr/0009-server-side-data-access.md)）
+- 通知（リマインド・自動購入の結果）は API の中の Notifier が DB から作り、アプリ内・ブラウザ通知・Discord / Slack に届ける。ワーカーは結果を書くだけ（[ADR 0017](adr/0017-notifications.md)）
 - ログインは ID + パスワード。web はセッションを HttpOnly の Cookie に持ち、API に `x-session-token` で渡す。API が毎回確かめ、本人のデータだけを返す（[ADR 0016](adr/0016-login-and-per-user-data.md)）
 - API とワーカーは DB だけでつながる（[ADR 0004](adr/0004-shared-sqlite-without-queue.md)）
 - 利用規約で自動化を禁止するサイトには、ワーカーからアクセスしない（[ADR 0005](adr/0005-respect-site-terms.md)）
