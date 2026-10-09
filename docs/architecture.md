@@ -64,13 +64,14 @@ scheduler（1 秒ごと）
   └─ 販売開始 2 分前を過ぎた auto の予約を pending → preparing で取得
        └─ executor（予約ごとのタスク）
             1. run を作成
-            2. login       … セッションを確立
-            3. prepare     … 公演・席種の ID を取得し、接続を温めておく
-            4. clock sync  … サーバー時刻とのずれを推定（秒の切り替わりを二分探索。ADR 0013）
-            5. 販売開始まで待機（sleep → 最後はビジーウェイト）
-            6. status を running に
-            7. purchase    … RetryPolicy の範囲で再試行
-            8. run と予約の状態を保存し、溜めた timings をまとめて書く
+            2. 予約のアカウントを読み、パスワードを復号（持ち主・サイトが予約と同じものだけ。ADR 0008, 0016）
+            3. login       … セッションを確立
+            4. prepare     … 公演・席種の ID を取得し、接続を温めておく
+            5. clock sync  … サーバー時刻とのずれを推定（秒の切り替わりを二分探索。ADR 0013）
+            6. 販売開始まで待機（sleep → 最後はビジーウェイト）
+            7. status を running に
+            8. purchase    … RetryPolicy の範囲で再試行
+            9. run と予約の状態を保存し、溜めた timings をまとめて書く
 ```
 
 - 売り切れ・CAPTCHA・待機列・購入上限は再試行しない。人の対応が必要なものは `needs_human` にする
@@ -79,7 +80,8 @@ scheduler（1 秒ごと）
 | ファイル | 役割 |
 |---|---|
 | `main.rs` | 起動。設定の読み込み・マイグレーションの確認（API が当てるまで最大 30 秒待つ）・途中で止まった予約の復旧 |
-| `config.rs` | 環境変数（`DATABASE_URL`・`STRIKER_POLL_INTERVAL_MS`・`STRIKER_LEAD_MS`）と、アダプタごとの設定（`SitesConfig`） |
+| `config.rs` | 環境変数（`DATABASE_URL`・`STRIKER_POLL_INTERVAL_MS`・`STRIKER_LEAD_MS`・`CREDENTIALS_ENCRYPTION_KEY`）と、アダプタごとの設定（`SitesConfig`） |
+| `crypto.rs` | サイトのログイン情報の復号（API と同じ AES-256-GCM の形式） |
 | `scheduler.rs` | ポーリングと、予約ごとのタスクの起動。Ctrl+C で実行中の購入を待って止まる |
 | `executor.rs` | 予約 1 件の購入処理と結果の保存 |
 | `db.rs` | 予約の取得（条件付き更新）・状態の更新・結果と計測値の保存 |
@@ -89,11 +91,12 @@ scheduler（1 秒ごと）
 | `site.rs` | `TicketSite` trait と `SiteError`・`SiteContext` |
 | `sites/` | `SiteRegistry` と登録済みのアダプタ（今は `mock.rs` のみ。`fake.rs` はテスト用）。追加の手順は `docs/development/adding-a-site.md` |
 
-### 残っていること（#4）
+### 残っていること
 
-- ログイン情報の復号（`SiteContext.credentials` は今は常に None。[ADR 0008](adr/0008-credential-encryption.md)）。作るときは、予約とアカウントの `user_id` が同じかもワーカーで確かめる（[ADR 0016](adr/0016-login-and-per-user-data.md)）
-- `needs_human` になったときの通知（#11）
-- 起動時の復旧は実装済み。前回途中で止まって `preparing` / `running` のまま残った自動購入の予約を `failed` にする
+ワーカーの土台はそろっている。残りはサイトごとのアダプタだけ（`docs/development/adding-a-site.md`）。
+
+- 起動時に、前回途中で止まって `preparing` / `running` のまま残った自動購入の予約を `failed` にする
+- 接続のウォームアップは、`prepare` と時刻合わせのリクエスト（販売開始の 0.5 秒前まで）が兼ねる。`TimedClient` は 300 秒まで接続を張ったまま待てる
 
 ## 予約の状態
 

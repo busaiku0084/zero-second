@@ -22,6 +22,8 @@ pub struct FakeSite {
     /// 登録するサイト id（スケジューラのテストでは "mock" として登録する）
     pub id: &'static str,
     pub behavior: FakeBehavior,
+    /// 設定すると、アカウントが必須になり、login でこのパスワードかを確かめる
+    pub expected_password: Option<&'static str>,
 }
 
 impl Default for FakeSite {
@@ -29,6 +31,7 @@ impl Default for FakeSite {
         Self {
             id: "fake",
             behavior: FakeBehavior::default(),
+            expected_password: None,
         }
     }
 }
@@ -39,8 +42,18 @@ impl TicketSite for FakeSite {
         self.id
     }
 
-    async fn login(&self, _ctx: &mut SiteContext) -> Result<(), SiteError> {
+    fn requires_credentials(&self) -> bool {
+        self.expected_password.is_some()
+    }
+
+    async fn login(&self, ctx: &mut SiteContext) -> Result<(), SiteError> {
         tokio::time::sleep(Duration::from_millis(1)).await;
+        if let Some(expected) = self.expected_password {
+            let given = ctx.credentials.as_ref().map(|c| c.password.as_str());
+            if given != Some(expected) {
+                return Err(SiteError::Other(anyhow::anyhow!("ログインできません")));
+            }
+        }
         Ok(())
     }
 

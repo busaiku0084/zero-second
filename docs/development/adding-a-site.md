@@ -40,7 +40,8 @@
    - 売り切れは `SiteError::SoldOut`、CAPTCHA・待機列・購入上限は `SiteError::HumanActionRequired` にする（再試行されない）
    - 送り先のホストは固定する。予約の公演 URL のホストへそのまま送らない
    - 必要なら `retry_policy()` で再試行を既定より厳しくする
-   - サーバー時刻を測れる URL があれば `clock_probe_url()` で返す
+   - サーバー時刻を測れる URL があれば `clock_probe_url()` で返す（販売開始の 0.5 秒前まで送るので、接続を温める役目も兼ねる）
+   - ログインが要るサイトは `requires_credentials()` で true を返し、`login()` で `ctx.credentials`（復号済みのログイン ID とパスワード）を使う。値はログ・エラーメッセージ・`timings` の URL に入れない
 2. 接続先などの設定が要るなら、`config.rs` の `SitesConfig` に項目を足し、環境変数から読む（`.env.example`・`docs/operations.md` にも書く）
 3. `sites/mod.rs` の `SiteRegistry::from_config` に 1 行足して登録する
 4. テストを書く。応答の解釈（`SiteError` への振り分けなど）は純粋関数にして単体テストにする。記録した応答を使う場合は実値を伏せる
