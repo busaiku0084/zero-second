@@ -76,6 +76,7 @@ zero-second にログインするユーザー（[ADR 0016](adr/0016-login-and-pe
 | 列 | 内容 |
 |---|---|
 | `mode` | `manual` / `auto` |
+| `driver` | 自動購入でサイトを操作した方法。`http`（API）/ `browser`（ブラウザ操作）。手動の記録は NULL（[ADR 0022](adr/0022-switchable-drivers-per-adapter.md)） |
 | `clock_offset_ms` | サーバー時刻 − 端末の時刻（ワーカーが測ったもの）。所要時間はこれを足してサーバーの時計にそろえる |
 | `started_at_ms` / `finished_at_ms` | 開始・完了 |
 | `result` | `succeeded` / `sold_out` / `failed` / `needs_human` |
@@ -87,7 +88,7 @@ zero-second にログインするユーザー（[ADR 0016](adr/0016-login-and-pe
 | 列 | 内容 |
 |---|---|
 | `phase` | `login` / `prepare` / `clock` / `purchase` |
-| `method` / `url` / `status` | リクエストの内容と HTTP ステータス |
+| `method` / `url` / `status` | リクエストの内容と HTTP ステータス。ブラウザ操作では method が `GOTO` / `CLICK` / `TYPE` / `SELECT` / `WAIT`、url が URL かセレクタ |
 | `started_at_ms` / `duration_ms` | 開始時刻と所要時間 |
 
 ## 予約の状態

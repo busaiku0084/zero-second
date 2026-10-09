@@ -53,7 +53,7 @@ async fn main() -> anyhow::Result<()> {
 
     tracing::info!(database = %config.database_path.display(), "striker started");
     let sites = SiteRegistry::from_config(&config.sites)?;
-    tracing::info!(sites = ?sites.ids().collect::<Vec<_>>(), "登録済みのサイト");
+    tracing::info!(sites = ?sites.summary(), "登録済みのサイト（id=操作の方法）");
     Scheduler::new(Arc::new(db), config, sites).run().await
 }
 

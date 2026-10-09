@@ -68,8 +68,9 @@ impl TicketSite for SauceDemoSite {
         "saucedemo"
     }
 
-    fn driver(&self) -> Driver {
-        Driver::Browser
+    /// Sauce Demo は画面だけのサイト（API がない）
+    fn drivers(&self) -> &'static [Driver] {
+        &[Driver::Browser]
     }
 
     fn requires_credentials(&self) -> bool {

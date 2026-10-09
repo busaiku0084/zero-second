@@ -104,7 +104,7 @@ impl BrowserSession {
         })
     }
 
-    /// 操作を記録する。method は GOTO / CLICK / TYPE / WAIT、target は URL かセレクタ
+    /// 操作を記録する。method は GOTO / CLICK / TYPE / SELECT / WAIT、target は URL かセレクタ
     fn record(&mut self, method: &str, target: &str, started_at_ms: i64, started: Instant) {
         self.timings.push(RequestTiming {
             phase: self.phase,
@@ -234,6 +234,50 @@ impl BrowserSession {
         .await;
         self.record("TYPE", selector, at, started);
         result.map_err(|e| SiteError::Other(anyhow!("{selector} に入力できません: {e}")))
+    }
+
+    /// 選択肢（`<select>`）から、値か表示の文字列が `value` と一致するものを選ぶ。
+    /// 一致するものがなければ何も変えず、選べる選択肢（表示の文字列）を `Err` で返す
+    pub async fn select(
+        &mut self,
+        selector: &str,
+        value: &str,
+        timeout: Duration,
+    ) -> Result<Result<(), Vec<String>>, SiteError> {
+        self.wait_for(selector, timeout).await?;
+        let (at, started) = (now_ms(), Instant::now());
+        let script = format!(
+            r#"(() => {{
+                const el = document.querySelector({selector});
+                const options = Array.from(el.options);
+                const hit = options.find((o) => o.value === {value} || o.text.trim() === {value});
+                if (!hit) return JSON.stringify(options.map((o) => o.text.trim()));
+                el.value = hit.value;
+                el.dispatchEvent(new Event("change", {{ bubbles: true }}));
+                return "null";
+            }})()"#,
+            selector = serde_json::to_string(selector).map_err(|e| SiteError::Other(e.into()))?,
+            value = serde_json::to_string(value).map_err(|e| SiteError::Other(e.into()))?,
+        );
+        let result = self.page.evaluate(script).await;
+        self.record("SELECT", selector, at, started);
+        // null をそのまま返すと CDP の応答に値が入らないので、JSON の文字列にして受け取る
+        let missing = result
+            .map_err(|e| SiteError::Other(anyhow!("{selector} を選べません: {e}")))?
+            .into_value::<String>()
+            .ok()
+            .and_then(|json| serde_json::from_str::<Option<Vec<String>>>(&json).ok())
+            .ok_or_else(|| SiteError::Other(anyhow!("{selector} の選択肢を読めません")))?;
+        Ok(match missing {
+            None => Ok(()),
+            Some(options) => Err(options),
+        })
+    }
+
+    /// 要素の属性の値
+    pub async fn attribute(&self, selector: &str, name: &str) -> Option<String> {
+        let element = self.page.find_element(selector).await.ok()?;
+        element.attribute(name).await.ok().flatten()
     }
 
     /// 要素があれば、その表示中のテキスト

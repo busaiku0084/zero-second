@@ -117,7 +117,8 @@
 ```
 
 - `result`: `succeeded` / `sold_out` / `failed` / `needs_human`
-- `startedAtMs` を省略すると販売開始時刻を使う。所要時間（`elapsedMs`）は「完了 + 時計のずれ（`clockOffsetMs`、無ければ 0）− 販売開始」（[ADR 0013](adr/0013-clock-sync-bisection-and-server-time-elapsed.md)）。販売開始より前に終わった実行（準备の段階での失敗など）は `null`
+- `startedAtMs` を省略すると販売開始時刻を使う。所要時間（`elapsedMs`）は「完了 + 時計のずれ（`clockOffsetMs`、無ければ 0）− 販売開始」（[ADR 0013](adr/0013-clock-sync-bisection-and-server-time-elapsed.md)）。販売開始より前に終わった実行（準備の段階での失敗など）は `null`
+- 実行の `driver` は、自動購入でワーカーがサイトを操作した方法（`http` / `browser`）。手動購入の記録は `null`（[ADR 0022](adr/0022-switchable-drivers-per-adapter.md)）
 
 ### 購入前チェックリスト
 

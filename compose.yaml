@@ -87,6 +87,8 @@ services:
       STRIKER_CHROME_PATH: /usr/bin/chromium
       # コンテナの中では Chrome のサンドボックスが使えないため外す（開くのはローカルの検証用サイトだけ）
       STRIKER_CHROME_NO_SANDBOX: "true"
+      # 操作の方法の切り替え（ADR 0022）。シェルか .env の値を使う（例: STRIKER_DRIVERS=mock=browser make docker-up）
+      STRIKER_DRIVERS: ${STRIKER_DRIVERS:-}
     # Chrome は /dev/shm を多く使う
     shm_size: 512m
     volumes:

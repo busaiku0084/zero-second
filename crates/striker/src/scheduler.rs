@@ -64,10 +64,10 @@ impl Scheduler {
             if !self.db.claim(reservation.id)? {
                 continue;
             }
-            let Some(site) = self.sites.find(&reservation.site) else {
+            let Some((site, driver)) = self.sites.find(&reservation.site) else {
                 // 規約で自動化が禁止されたサイトなど、アダプタのない予約は動かさない（ADR 0005）
                 tracing::warn!(reservation_id = reservation.id, site = %reservation.site, "未対応のサイトです");
-                let run_id = self.db.create_run(reservation.id, now_ms())?;
+                let run_id = self.db.create_run(reservation.id, now_ms(), None)?;
                 self.db.finish_run(
                     reservation.id,
                     run_id,
@@ -86,12 +86,13 @@ impl Scheduler {
                 continue;
             };
 
-            tracing::info!(reservation_id = reservation.id, site = site.id(), title = %reservation.title, "準備を始めます");
+            tracing::info!(reservation_id = reservation.id, site = site.id(), driver = driver.as_str(), title = %reservation.title, "準備を始めます");
             let db = Arc::clone(&self.db);
             let env = executor::RunEnv {
                 policy: site.retry_policy(),
                 credential_key: self.config.credential_key.clone(),
                 browser: self.config.browser.clone(),
+                driver,
             };
             tasks.spawn(async move {
                 let id = reservation.id;

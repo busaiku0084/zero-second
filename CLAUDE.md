@@ -35,7 +35,7 @@ zero-second/
 │           ├── scheduler.rs # 予約のポーリング
 │           ├── executor.rs  # 予約 1 件の購入処理
 │           ├── site.rs      # trait TicketSite（login / prepare / purchase）
-│           ├── sites/       # サイトアダプタ（mock: API、saucedemo: ブラウザ操作。fake はテスト用）
+│           ├── sites/       # サイトアダプタ（mock: API とブラウザ操作の両方＝骨格の見本、saucedemo: ブラウザ操作。fake はテスト用）
 │           ├── browser.rs   # ブラウザ操作モード（ヘッドレス Chrome。ADR 0021）
 │           ├── clock.rs     # 時刻合わせと待機
 │           ├── http.rs      # 計測つき HTTP クライアント（TimedClient）

@@ -10,9 +10,10 @@ use rusqlite::{Connection, OptionalExtension, params};
 
 use crate::metrics::RequestTiming;
 use crate::model::{Reservation, ReservationStatus, RunFinish};
+use crate::site::Driver;
 
 /// ワーカーが前提にするマイグレーション（これ以降が適用済みであること）
-const REQUIRED_MIGRATION: &str = "0006_user_management.sql";
+const REQUIRED_MIGRATION: &str = "0007_run_driver.sql";
 
 /// accounts の 1 行（パスワードは暗号化されたまま）
 pub struct StoredAccount {
@@ -169,11 +170,17 @@ impl Db {
         Ok(())
     }
 
-    pub fn create_run(&self, reservation_id: i64, started_at_ms: i64) -> anyhow::Result<i64> {
+    /// 実行を始める。driver は使う操作の方法（アダプタがなく実行しない場合は None）
+    pub fn create_run(
+        &self,
+        reservation_id: i64,
+        started_at_ms: i64,
+        driver: Option<Driver>,
+    ) -> anyhow::Result<i64> {
         let conn = self.conn()?;
         conn.execute(
-            "INSERT INTO runs (reservation_id, mode, started_at_ms) VALUES (?, 'auto', ?)",
-            params![reservation_id, started_at_ms],
+            "INSERT INTO runs (reservation_id, mode, started_at_ms, driver) VALUES (?, 'auto', ?, ?)",
+            params![reservation_id, started_at_ms, driver.map(Driver::as_str)],
         )?;
         Ok(conn.last_insert_rowid())
     }

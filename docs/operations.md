@@ -35,6 +35,8 @@ make dev-striker              # ワーカー（API がマイグレーション�
 
 ホストで動かすときに操作を目で見たいなら `.env` に `STRIKER_BROWSER_HEADFUL=true` を入れて `make dev-striker` を起動し直す。
 
+モックサイトは API とブラウザ操作の両方で買える。既定は API で、`.env` に `STRIKER_DRIVERS=mock=browser` を入れる（Docker なら `STRIKER_DRIVERS=mock=browser make docker-up`）とブラウザ操作に切り替わる。どちらで買ったかは実行結果の画面に出る。
+
 ## 通知
 
 [ADR 0017](adr/0017-notifications.md)。API が 5 秒おきに確かめ、リマインドと自動購入の結果を送る。
@@ -110,6 +112,7 @@ make docker-dev-down
 | `SAUCE_DEMO_URL` | ワーカー（ブラウザ）が開く Sauce Demo（既定 `http://127.0.0.1:47303`。Docker では `http://saucedemo:47303`） |
 | `STRIKER_CHROME_PATH` | ブラウザ操作モードの Chrome（空なら標準の場所。Docker では `/usr/bin/chromium`） |
 | `STRIKER_BROWSER_HEADFUL` | `true` で画面を出して動かす（ホストで操作を目で確かめるとき） |
+| `STRIKER_DRIVERS` | サイトごとの操作の方法をアダプタの既定から切り替える（例: `mock=browser`。空なら既定。[ADR 0022](adr/0022-switchable-drivers-per-adapter.md)）。アダプタが対応していない方法を指定すると起動時に止まる |
 | `STRIKER_CHROME_NO_SANDBOX` | `true` で Chrome のサンドボックスを外す（Docker の中だけ。compose が設定する） |
 | `RUST_LOG` | ワーカーのログレベル（例: `striker=info`） |
 
