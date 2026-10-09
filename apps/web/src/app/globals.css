@@ -741,6 +741,8 @@ tbody tr.row-link:hover td {
   display: grid;
   gap: 6px;
   min-width: 0;
+  /* 隣の項目にだけヒントがあっても、入力欄の高さをそろえる */
+  align-content: start;
 }
 
 .field-wide {
@@ -911,6 +913,108 @@ fieldset {
   min-width: 0;
 }
 
+/* ---------- auth（ログイン・初回セットアップ・招待） ---------- */
+
+.auth {
+  display: grid;
+  justify-items: center;
+  gap: 16px;
+  padding-block: 6vh 0;
+}
+
+.auth-card {
+  width: 100%;
+  max-width: 420px;
+  display: grid;
+  gap: 24px;
+  padding: 28px;
+}
+
+.auth-head {
+  display: grid;
+  gap: 4px;
+}
+
+.auth-head h1 {
+  text-wrap: balance;
+}
+
+/* 販売開始の瞬間を表す時刻の表示。ヘッダーの wordmark と同じ意匠 */
+.auth-mark {
+  margin: 0 0 12px;
+  font-family: var(--font-mono);
+  font-size: 1.9rem;
+  font-weight: 500;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+
+.auth-card .button-primary {
+  width: 100%;
+}
+
+.auth-card > .button {
+  justify-self: start;
+}
+
+.auth-foot {
+  max-width: 420px;
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--muted);
+  text-align: center;
+  text-wrap: balance;
+}
+
+/* ヘッダー右端のユーザー */
+.user-menu {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  font-size: 0.85rem;
+  min-width: 0;
+}
+
+.user-menu form {
+  display: contents;
+}
+
+.user-menu-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ink-2);
+  text-decoration: none;
+  min-width: 0;
+}
+
+.user-menu-name:hover {
+  color: var(--ink);
+}
+
+.user-menu-name .mono {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.user-avatar {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  background: var(--accent-wash);
+  color: var(--accent-ink);
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  font-weight: 500;
+}
+
 /* ---------- responsive ---------- */
 
 @media (max-width: 820px) {
@@ -934,6 +1038,9 @@ fieldset {
   .topbar-inner {
     gap: 8px 16px;
     padding-block: 8px;
+  }
+  .auth-card {
+    padding: 20px;
   }
 }
 

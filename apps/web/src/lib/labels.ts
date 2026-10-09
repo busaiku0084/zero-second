@@ -1,4 +1,4 @@
-import type { ReservationMode, ReservationStatus, RunResult } from "@zero-second/shared";
+import type { ReservationMode, ReservationStatus, RunResult, UserRole } from "@zero-second/shared";
 
 /** 状態は色だけで伝えない。アイコン + ラベルを必ず一緒に出す */
 export type Tone = "neutral" | "info" | "good" | "warning" | "serious" | "critical";
@@ -31,3 +31,14 @@ export const MODE_LABELS: Record<ReservationMode, string> = {
 export const PAYMENT_LABELS = {
   convenience_store: "コンビニ払い",
 } as const;
+
+export const ROLE_LABELS: Record<UserRole, string> = {
+  admin: "管理者",
+  member: "メンバー",
+};
+
+export const INVITATION_LABELS = {
+  open: { label: "未使用", tone: "info", icon: "clock" },
+  accepted: { label: "登録済み", tone: "good", icon: "check" },
+  expired: { label: "期限切れ", tone: "neutral", icon: "slash" },
+} as const satisfies Record<string, Label>;

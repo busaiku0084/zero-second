@@ -2,7 +2,8 @@
 
 import type { Site } from "@zero-second/shared";
 import { useActionState } from "react";
-import { createAccount, type FormState } from "@/app/actions";
+import { createAccount } from "@/app/actions";
+import type { FormState } from "@/lib/form";
 import { Field, FormMessage } from "./Field";
 import { SubmitButton } from "./SubmitButton";
 

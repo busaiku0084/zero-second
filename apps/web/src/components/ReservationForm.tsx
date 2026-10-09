@@ -8,7 +8,8 @@ import {
   type Site,
 } from "@zero-second/shared";
 import { useActionState, useState } from "react";
-import { createReservation, type FormState } from "@/app/actions";
+import { createReservation } from "@/app/actions";
+import type { FormState } from "@/lib/form";
 import { toJstInput } from "@/lib/format";
 import { Field, FormMessage } from "./Field";
 import { SubmitButton } from "./SubmitButton";

@@ -21,6 +21,7 @@
 ```
 
 - ブラウザは API を直接呼ばない（[ADR 0009](adr/0009-server-side-data-access.md)）
+- ログインは ID + パスワード。web はセッションを HttpOnly の Cookie に持ち、API に `x-session-token` で渡す。API が毎回確かめ、本人のデータだけを返す（[ADR 0016](adr/0016-login-and-per-user-data.md)）
 - API とワーカーは DB だけでつながる（[ADR 0004](adr/0004-shared-sqlite-without-queue.md)）
 - 利用規約で自動化を禁止するサイトには、ワーカーからアクセスしない（[ADR 0005](adr/0005-respect-site-terms.md)）
 - 自動購入を許可しているサイトはまだないため、ワーカーの購入先は検証用のモックサイトだけ（[ADR 0012](adr/0012-mock-site-as-local-http-server.md)）
@@ -90,7 +91,7 @@ scheduler（1 秒ごと）
 
 ### 残っていること（#4）
 
-- ログイン情報の復号（`SiteContext.credentials` は今は常に None。[ADR 0008](adr/0008-credential-encryption.md)）
+- ログイン情報の復号（`SiteContext.credentials` は今は常に None。[ADR 0008](adr/0008-credential-encryption.md)）。作るときは、予約とアカウントの `user_id` が同じかもワーカーで確かめる（[ADR 0016](adr/0016-login-and-per-user-data.md)）
 - `needs_human` になったときの通知（#11）
 - 起動時の復旧は実装済み。前回途中で止まって `preparing` / `running` のまま残った自動購入の予約を `failed` にする
 

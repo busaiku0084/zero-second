@@ -14,13 +14,29 @@ SQLite（WAL モード）。API とワーカーが同じファイルを使う（
 
 時刻はすべて UNIX ミリ秒の INTEGER（[ADR 0007](adr/0007-time-representation.md)）。
 
+### users
+zero-second にログインするユーザー（[ADR 0016](adr/0016-login-and-per-user-data.md)）。
+
+| 列 | 内容 |
+|---|---|
+| `login_id` | ログイン ID。大文字・小文字を区別せず一意 |
+| `password_hash` | scrypt のハッシュ（`scrypt$logN$r$p$salt$hash`） |
+| `role` | `admin`（招待・ユーザー一覧を扱える）/ `member` |
+
+### sessions
+ログイン中のセッション。`token_hash` はトークンの SHA-256（トークンそのものは保存しない）。`expires_at_ms` を過ぎたものは無効で、ログインのたびに消す。
+
+### invitations
+招待リンク。`token_hash` はトークンの SHA-256。`accepted_at_ms` が入ったものは使用済み。`note` は管理者用のメモ。
+
 ### accounts
 サイトごとのログイン情報。
 
 | 列 | 内容 |
 |---|---|
+| `user_id` | 持ち主のユーザー。ログイン機能より前の行は NULL で、最初の管理者を作ったときに引き継ぐ |
 | `site` | サイト ID（`packages/shared/src/sites.json`） |
-| `login_id` | ログイン ID。`(site, login_id)` で一意 |
+| `login_id` | ログイン ID。`(user_id, site, login_id)` で一意 |
 | `encrypted_credentials` | AES-256-GCM で暗号化したパスワード（[ADR 0008](adr/0008-credential-encryption.md)） |
 
 ### reservations
@@ -28,7 +44,8 @@ SQLite（WAL モード）。API とワーカーが同じファイルを使う（
 
 | 列 | 内容 |
 |---|---|
-| `account_id` | 使うアカウント（任意。アカウント削除時は NULL） |
+| `user_id` | 持ち主のユーザー（accounts と同じく、古い行は最初の管理者に引き継ぐ） |
+| `account_id` | 使うアカウント（任意。本人のものだけ。アカウント削除時は NULL） |
 | `site` / `title` / `event_url` | サイト・公演名・公演ページ |
 | `ticket_type` / `quantity` / `payment_method` | 席種・枚数・支払い方法（今は `convenience_store` のみ） |
 | `sale_starts_at_ms` | 販売開始時刻 |

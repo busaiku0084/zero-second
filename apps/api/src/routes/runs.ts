@@ -13,9 +13,9 @@ export const runs = new Hono<AppEnv>().get(
       .prepare(
         `SELECT runs.*, reservations.sale_starts_at_ms
          FROM runs JOIN reservations ON reservations.id = runs.reservation_id
-         WHERE runs.id = ?`,
+         WHERE runs.id = ? AND reservations.user_id = ?`,
       )
-      .get(id);
+      .get(id, c.var.user.id);
     if (!row) return c.json({ error: "実行結果が見つかりません" }, 404);
     const timings = c.var.db
       .prepare("SELECT * FROM timings WHERE run_id = ? ORDER BY started_at_ms, id")

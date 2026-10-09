@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import type { FormState } from "@/app/actions";
+import type { FormState } from "@/lib/form";
 
 /** 取り消せない操作は 2 段階で確認する（ブラウザの confirm ダイアログは使わない） */
 export function ConfirmButton({

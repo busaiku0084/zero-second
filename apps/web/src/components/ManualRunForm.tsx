@@ -1,7 +1,8 @@
 "use client";
 
 import { useActionState, useRef, useState } from "react";
-import { type FormState, recordManualRun } from "@/app/actions";
+import { recordManualRun } from "@/app/actions";
+import type { FormState } from "@/lib/form";
 import { formatElapsed, toJstInput } from "@/lib/format";
 import { RESULT_LABELS } from "@/lib/labels";
 import { Field, FormMessage } from "./Field";

@@ -1,5 +1,6 @@
 import type {
   Account,
+  Invitation,
   PaymentMethod,
   Reservation,
   ReservationMode,
@@ -8,6 +9,8 @@ import type {
   RunResult,
   SiteId,
   Timing,
+  User,
+  UserRole,
 } from "@zero-second/shared";
 
 /** node:sqlite の行（列名 → 値） */
@@ -96,5 +99,26 @@ export function toTiming(r: Row): Timing {
     status: numOrNull(r.status),
     startedAtMs: num(r.started_at_ms),
     durationMs: num(r.duration_ms),
+  };
+}
+
+export function toUser(r: Row): User {
+  return {
+    id: num(r.id),
+    loginId: str(r.login_id),
+    role: str(r.role) as UserRole,
+    createdAtMs: num(r.created_at_ms),
+  };
+}
+
+/** invitations と、受け入れたユーザーの login_id（accepted_by_login_id）を結合した行から変換する */
+export function toInvitation(r: Row): Invitation {
+  return {
+    id: num(r.id),
+    note: str(r.note),
+    createdAtMs: num(r.created_at_ms),
+    expiresAtMs: num(r.expires_at_ms),
+    acceptedByLoginId: strOrNull(r.accepted_by_login_id),
+    acceptedAtMs: numOrNull(r.accepted_at_ms),
   };
 }
