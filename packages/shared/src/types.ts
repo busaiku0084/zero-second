@@ -3,6 +3,7 @@ import type {
   PaymentMethod,
   ReservationMode,
   ReservationStatus,
+  RunDriver,
   RunResult,
   UserRole,
   WebhookKind,
@@ -41,6 +42,8 @@ export type Run = {
   id: number;
   reservationId: number;
   mode: ReservationMode;
+  /** 自動購入で使った操作の方法。手動購入と、これを記録する前の実行は null */
+  driver: RunDriver | null;
   clockOffsetMs: number | null;
   startedAtMs: number;
   finishedAtMs: number | null;

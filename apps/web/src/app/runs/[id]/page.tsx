@@ -7,7 +7,7 @@ import { ResultPill } from "@/components/StatusPill";
 import { Waterfall } from "@/components/Waterfall";
 import { ApiError, api } from "@/lib/api";
 import { formatDateTime, formatElapsed } from "@/lib/format";
-import { MODE_LABELS } from "@/lib/labels";
+import { DRIVER_LABELS, MODE_LABELS } from "@/lib/labels";
 
 export const metadata: Metadata = { title: "実行結果" };
 
@@ -37,6 +37,7 @@ export default async function RunPage({ params }: PageProps<"/runs/[id]">) {
           <div className="button-row">
             <ResultPill result={run.result} />
             <span className="tag">{MODE_LABELS[run.mode]}</span>
+            {run.driver ? <span className="tag">{DRIVER_LABELS[run.driver]}</span> : null}
           </div>
         </div>
       </div>

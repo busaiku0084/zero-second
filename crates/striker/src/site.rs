@@ -37,7 +37,7 @@ impl std::fmt::Debug for Credentials {
     }
 }
 
-/// アダプタがサイトを操作する方法（ADR 0021）
+/// アダプタがサイトを操作する方法（ADR 0021, 0022）
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Driver {
     /// サイトの API を HTTP で叩く（`ctx.http`）。速いので、使えるならこちら
@@ -46,11 +46,31 @@ pub enum Driver {
     Browser,
 }
 
+impl Driver {
+    /// 設定（`STRIKER_DRIVERS`）と DB（`runs.driver`）での表記
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Driver::Http => "http",
+            Driver::Browser => "browser",
+        }
+    }
+
+    pub fn parse(value: &str) -> Option<Self> {
+        match value.trim() {
+            "http" => Some(Driver::Http),
+            "browser" => Some(Driver::Browser),
+            _ => None,
+        }
+    }
+}
+
 /// 1 回の実行のあいだ、アダプタが使う状態
 pub struct SiteContext {
     pub reservation: Reservation,
+    /// 今回の実行で使う操作の方法。アダプタはこれを見て API とブラウザ操作の処理を切り替える
+    pub driver: Driver,
     pub http: TimedClient,
-    /// `Driver::Browser` のアダプタのときだけ入る
+    /// `driver` が `Driver::Browser` のときだけ入る
     pub browser: Option<BrowserSession>,
     /// 予約に指定したアカウントのログイン情報（復号済み）。アカウントを指定していなければ None
     pub credentials: Option<Credentials>,
@@ -68,9 +88,10 @@ pub trait TicketSite: Send + Sync {
         RetryPolicy::default()
     }
 
-    /// サイトを操作する方法。既定は HTTP（API）
-    fn driver(&self) -> Driver {
-        Driver::Http
+    /// 対応している操作の方法。先頭が既定で、`STRIKER_DRIVERS` で別の方法に切り替えられる（ADR 0022）。
+    /// 両方に対応するアダプタは、login / prepare / purchase の中で `ctx.driver` を見て処理を分ける
+    fn drivers(&self) -> &'static [Driver] {
+        &[Driver::Http]
     }
 
     /// ログインにアカウント（ID とパスワード）が要るか。true なら、アカウントのない予約は login の前に失敗にする
@@ -103,7 +124,7 @@ impl SiteContext {
     pub fn browser(&mut self) -> Result<&mut BrowserSession, SiteError> {
         self.browser.as_mut().ok_or_else(|| {
             SiteError::Other(anyhow::anyhow!(
-                "ブラウザが起動していません（アダプタの driver() が Browser か確認してください）"
+                "ブラウザが起動していません（ctx.driver が Browser のときだけ使えます）"
             ))
         })
     }

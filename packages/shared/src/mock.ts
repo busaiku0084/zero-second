@@ -14,6 +14,15 @@ export const MOCK_SCENARIOS = [
 ] as const satisfies readonly MockScenario[];
 
 export type MockScenario = { id: string; name: string; description: string };
+
+/** モックサイトの公演の席種（どのシナリオも同じ）。striker は予約の席種をこの名前で探す */
+export const MOCK_TICKET_TYPES = [
+  { name: "一般", price: 5500 },
+  { name: "前方エリア", price: 8800 },
+] as const;
+
+/** モックサイトの 1 回の注文の枚数の上限（購入上限。超えたら striker は人の対応に回す） */
+export const MOCK_MAX_PER_ORDER = 4;
 export type MockScenarioId = (typeof MOCK_SCENARIOS)[number]["id"];
 
 export function findMockScenario(id: string): MockScenario | undefined {

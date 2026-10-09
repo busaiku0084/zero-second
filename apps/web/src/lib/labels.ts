@@ -2,6 +2,7 @@ import type {
   NotificationKind,
   ReservationMode,
   ReservationStatus,
+  RunDriver,
   RunResult,
   UserRole,
 } from "@zero-second/shared";
@@ -32,6 +33,12 @@ export const RESULT_LABELS: Record<RunResult, Label> = {
 export const MODE_LABELS: Record<ReservationMode, string> = {
   manual: "手動で購入",
   auto: "自動で購入",
+};
+
+/** 自動購入でワーカーがサイトを操作した方法（ADR 0022） */
+export const DRIVER_LABELS: Record<RunDriver, string> = {
+  http: "API",
+  browser: "ブラウザ操作",
 };
 
 export const PAYMENT_LABELS = {

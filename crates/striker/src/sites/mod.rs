@@ -12,7 +12,7 @@ use anyhow::bail;
 use reqwest::Url;
 
 use crate::config::SitesConfig;
-use crate::site::TicketSite;
+use crate::site::{Driver, TicketSite};
 
 #[cfg(test)]
 pub mod fake;
@@ -42,10 +42,10 @@ pub fn local_origin(base_url: &str, env_name: &str) -> anyhow::Result<String> {
     Ok(url.origin().ascii_serialization())
 }
 
-/// サイト id → アダプタ
+/// サイト id → アダプタと、そのサイトで使う操作の方法
 #[derive(Default)]
 pub struct SiteRegistry {
-    sites: BTreeMap<&'static str, Arc<dyn TicketSite>>,
+    sites: BTreeMap<&'static str, (Arc<dyn TicketSite>, Driver)>,
 }
 
 impl SiteRegistry {
@@ -56,23 +56,59 @@ impl SiteRegistry {
         registry.register(Arc::new(saucedemo::SauceDemoSite::new(
             &config.sauce_demo_url,
         )?))?;
+        for (site_id, driver) in &config.drivers {
+            registry.set_driver(site_id, *driver)?;
+        }
         Ok(registry)
     }
 
+    /// アダプタを登録する。操作の方法はアダプタの既定（`drivers()` の先頭）
     pub fn register(&mut self, site: Arc<dyn TicketSite>) -> anyhow::Result<()> {
         let id = site.id();
-        if self.sites.insert(id, site).is_some() {
+        let Some(&driver) = site.drivers().first() else {
+            bail!("サイト {id} のアダプタが、対応する操作の方法を返していません");
+        };
+        if self.sites.insert(id, (site, driver)).is_some() {
             bail!("サイト {id} のアダプタが二重に登録されています");
         }
         Ok(())
     }
 
-    pub fn find(&self, site_id: &str) -> Option<Arc<dyn TicketSite>> {
+    /// サイトで使う操作の方法を切り替える（ADR 0022）。アダプタが対応していない方法は受け付けない
+    pub fn set_driver(&mut self, site_id: &str, driver: Driver) -> anyhow::Result<()> {
+        let Some((site, current)) = self.sites.get_mut(site_id) else {
+            bail!("STRIKER_DRIVERS: 登録されていないサイトです: {site_id}");
+        };
+        if !site.drivers().contains(&driver) {
+            bail!(
+                "STRIKER_DRIVERS: {site_id} は {} に対応していません（対応: {}）",
+                driver.as_str(),
+                site.drivers()
+                    .iter()
+                    .map(|d| d.as_str())
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            );
+        }
+        *current = driver;
+        Ok(())
+    }
+
+    pub fn find(&self, site_id: &str) -> Option<(Arc<dyn TicketSite>, Driver)> {
         self.sites.get(site_id).cloned()
     }
 
+    #[cfg(test)]
     pub fn ids(&self) -> impl Iterator<Item = &'static str> + '_ {
         self.sites.keys().copied()
+    }
+
+    /// 起動時のログ用（`mock=http` など）
+    pub fn summary(&self) -> Vec<String> {
+        self.sites
+            .iter()
+            .map(|(id, (_, driver))| format!("{id}={}", driver.as_str()))
+            .collect()
     }
 }
 
@@ -124,6 +160,19 @@ mod tests {
         let registry = registry();
         assert!(registry.find("ticketdive").is_none());
         assert!(registry.find("livepocket").is_none());
+    }
+
+    #[test]
+    fn drivers_default_to_the_adapter_and_can_be_switched() {
+        let mut registry = registry();
+        assert_eq!(registry.find("mock").unwrap().1, Driver::Http);
+        assert_eq!(registry.find("saucedemo").unwrap().1, Driver::Browser);
+
+        registry.set_driver("mock", Driver::Browser).unwrap();
+        assert_eq!(registry.find("mock").unwrap().1, Driver::Browser);
+        // Sauce Demo は API を持たない。登録していないサイトも受け付けない
+        assert!(registry.set_driver("saucedemo", Driver::Http).is_err());
+        assert!(registry.set_driver("ticketdive", Driver::Http).is_err());
     }
 
     #[test]

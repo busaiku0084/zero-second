@@ -7,6 +7,7 @@ use anyhow::{Context, bail};
 
 use crate::browser::BrowserSettings;
 use crate::crypto::CredentialKey;
+use crate::site::Driver;
 
 #[derive(Debug, Clone)]
 pub struct Config {
@@ -30,6 +31,8 @@ pub struct SitesConfig {
     pub mock_url: String,
     /// Sauce Demo（ローカルで動かしたもの）の接続先（`SAUCE_DEMO_URL`）。ブラウザ操作モードの確認用
     pub sauce_demo_url: String,
+    /// サイトごとの操作の方法を、アダプタの既定から切り替える（`STRIKER_DRIVERS=mock=browser,...`。ADR 0022）
+    pub drivers: Vec<(String, Driver)>,
 }
 
 impl Config {
@@ -50,6 +53,7 @@ impl Config {
                 sauce_demo_url: get("SAUCE_DEMO_URL")
                     .filter(|v| !v.trim().is_empty())
                     .unwrap_or_else(|| "http://127.0.0.1:47303".into()),
+                drivers: drivers(get("STRIKER_DRIVERS").as_deref().unwrap_or(""))?,
             },
             credential_key: match get("CREDENTIALS_ENCRYPTION_KEY") {
                 Some(v) if !v.trim().is_empty() => Some(CredentialKey::parse(&v)?),
@@ -73,6 +77,24 @@ fn database_path(url: &str) -> anyhow::Result<PathBuf> {
         bail!("DATABASE_URL が空です");
     }
     Ok(PathBuf::from(path))
+}
+
+/// `mock=browser,saucedemo=browser` → [(mock, Browser), (saucedemo, Browser)]
+fn drivers(value: &str) -> anyhow::Result<Vec<(String, Driver)>> {
+    value
+        .split(',')
+        .map(str::trim)
+        .filter(|item| !item.is_empty())
+        .map(|item| {
+            let (site, driver) = item.split_once('=').with_context(|| {
+                format!("STRIKER_DRIVERS は サイト=http|browser をカンマで区切ってください: {item}")
+            })?;
+            let driver = Driver::parse(driver).with_context(|| {
+                format!("STRIKER_DRIVERS の方法は http か browser です: {item}")
+            })?;
+            Ok((site.trim().to_string(), driver))
+        })
+        .collect()
 }
 
 /// true / 1 のときだけ有効
@@ -134,6 +156,21 @@ mod tests {
                 .is_some()
         );
         assert!(config(&[("CREDENTIALS_ENCRYPTION_KEY", "short")]).is_err());
+    }
+
+    #[test]
+    fn driver_overrides() {
+        assert!(config(&[]).unwrap().sites.drivers.is_empty());
+        let c = config(&[("STRIKER_DRIVERS", " mock=browser, saucedemo = browser ,")]).unwrap();
+        assert_eq!(
+            c.sites.drivers,
+            vec![
+                ("mock".to_string(), Driver::Browser),
+                ("saucedemo".to_string(), Driver::Browser)
+            ]
+        );
+        assert!(config(&[("STRIKER_DRIVERS", "mock")]).is_err());
+        assert!(config(&[("STRIKER_DRIVERS", "mock=selenium")]).is_err());
     }
 
     #[test]

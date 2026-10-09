@@ -21,11 +21,13 @@ const CLOCK_PROBES: u32 = 8;
 const CLOCK_MARGIN_MS: i64 = 500;
 
 /// 実行に使う設定（予約によらないもの）
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct RunEnv {
     pub policy: RetryPolicy,
     pub credential_key: Option<CredentialKey>,
     pub browser: BrowserSettings,
+    /// このサイトで使う操作の方法（SiteRegistry が決める。ADR 0022）
+    pub driver: Driver,
 }
 
 /// 取得済み（preparing）の予約を 1 件実行し、結果を DB に保存する
@@ -35,11 +37,12 @@ pub async fn execute(
     reservation: Reservation,
     env: &RunEnv,
 ) -> anyhow::Result<RunResult> {
-    let run_id = db.create_run(reservation.id, now_ms())?;
+    let run_id = db.create_run(reservation.id, now_ms(), Some(env.driver))?;
     let reservation_id = reservation.id;
 
     let mut ctx = SiteContext {
         reservation,
+        driver: env.driver,
         http: TimedClient::new().context("HTTP クライアントを作れません")?,
         browser: None,
         credentials: None,
@@ -49,7 +52,7 @@ pub async fn execute(
     let mut clock_offset_ms = None;
     let result = async {
         ctx.credentials = load_credentials(db, site, reservation_id, env.credential_key.as_ref())?;
-        if site.driver() == Driver::Browser {
+        if env.driver == Driver::Browser {
             ctx.browser = Some(
                 BrowserSession::launch(&env.browser)
                     .await
@@ -210,7 +213,8 @@ mod tests {
         let env = RunEnv {
             policy: fast_policy(),
             credential_key: key.cloned(),
-            ..RunEnv::default()
+            browser: Default::default(),
+            driver: Driver::Http,
         };
         let result = execute(&db, site, reservation, &env).await.unwrap();
         (db, id, result)

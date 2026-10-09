@@ -22,6 +22,10 @@ export type ReservationMode = (typeof RESERVATION_MODES)[number];
 export type ReservationStatus = (typeof RESERVATION_STATUSES)[number];
 export type RunResult = (typeof RUN_RESULTS)[number];
 
+/** 自動購入でワーカーがサイトを操作した方法（ADR 0022）。予約の画面では選ばない */
+export const RUN_DRIVERS = ["http", "browser"] as const;
+export type RunDriver = (typeof RUN_DRIVERS)[number];
+
 // ---- accounts ----
 
 export const accountCreateSchema = z.object({

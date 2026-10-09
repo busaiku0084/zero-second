@@ -402,7 +402,9 @@ describe("手動購入の記録とダッシュボード", () => {
       paymentReference: "1234-5678",
     });
     expect(runRes.status).toBe(201);
-    expect(((await runRes.json()) as Run).elapsedMs).toBe(42_000);
+    const manualRun = (await runRes.json()) as Run;
+    expect(manualRun.elapsedMs).toBe(42_000);
+    expect(manualRun.driver).toBeNull();
     await json("POST", `/reservations/${b.id}/manual-runs`, {
       result: "sold_out",
       finishedAtMs: SALE_AT + 90_000,
@@ -426,12 +428,14 @@ describe("手動購入の記録とダッシュボード", () => {
     const a = await createReservation();
     // ワーカーが準備の段階（販売開始の 2 分前）で失敗したときの記録
     db.prepare(
-      `INSERT INTO runs (reservation_id, mode, started_at_ms, finished_at_ms, result, error)
-       VALUES (?, 'auto', ?, ?, 'failed', 'ログインできません')`,
+      `INSERT INTO runs (reservation_id, mode, started_at_ms, finished_at_ms, result, error, driver)
+       VALUES (?, 'auto', ?, ?, 'failed', 'ログインできません', 'browser')`,
     ).run(a.id, SALE_AT - 120_000, SALE_AT - 115_000);
 
     const detail = (await (await get(`/reservations/${a.id}`)).json()) as { runs: Run[] };
     expect(detail.runs[0]?.elapsedMs).toBeNull();
+    // 自動購入で使った操作の方法（ADR 0022）
+    expect(detail.runs[0]?.driver).toBe("browser");
 
     const summary = (await (await get("/dashboard?range=all")).json()) as DashboardSummary;
     expect(summary.runCount).toBe(1);
