@@ -32,6 +32,8 @@
 
 これだけで、予約フォームのサイトの選択肢・API の検証・一覧の表示名に反映される。
 
+サイトに特有の準備（本人確認など）があれば、`packages/shared/src/checklist.ts` の購入前チェックリストのテンプレートにも足す。
+
 ## 2. アダプタを書く（`auto` のときだけ）
 
 1. `crates/striker/src/sites/<id>.rs` に `TicketSite` を実装する。`sites/mock.rs` が見本

@@ -1,9 +1,11 @@
 import { randomBytes } from "node:crypto";
 import type {
   Account,
+  ChecklistItem,
   DashboardSummary,
   InvitationCreated,
   Reservation,
+  ReservationListItem,
   Run,
   SessionResponse,
   User,
@@ -426,5 +428,76 @@ describe("手動購入の記録とダッシュボード", () => {
       finishedAtMs: SALE_AT - 1,
     });
     expect(res.status).toBe(400);
+  });
+});
+
+describe("購入前チェックリスト", () => {
+  type Detail = Reservation & { checklist: ChecklistItem[] };
+  const detail = async (id: number, token: string | null = session) =>
+    (await (await get(`/reservations/${id}`, token)).json()) as Detail;
+
+  it("予約を作るとサイトのテンプレートが入り、一覧に進み具合が出る", async () => {
+    const r = await createReservation();
+    const { checklist } = await detail(r.id);
+    expect(checklist.length).toBeGreaterThan(0);
+    expect(checklist[0]?.label).toContain("TicketDive");
+    expect(checklist.every((i) => !i.done)).toBe(true);
+
+    for (const item of checklist) {
+      const res = await json("PATCH", `/reservations/${r.id}/checklist/${item.id}`, { done: true });
+      expect(((await res.json()) as ChecklistItem).done).toBe(true);
+    }
+    const list = (await (await get("/reservations")).json()) as ReservationListItem[];
+    expect(list[0]).toMatchObject({
+      checklistTotal: checklist.length,
+      checklistDone: checklist.length,
+    });
+  });
+
+  it("項目を足す・消す・テンプレートから戻す", async () => {
+    const r = await createReservation();
+    const added = await json("POST", `/reservations/${r.id}/checklist`, { label: "同行者に連絡" });
+    expect(added.status).toBe(201);
+    const item = (await added.json()) as ChecklistItem;
+    const before = (await detail(r.id)).checklist;
+    expect(before.at(-1)?.label).toBe("同行者に連絡");
+
+    for (const i of before.slice(0, 2)) {
+      expect((await json("DELETE", `/reservations/${r.id}/checklist/${i.id}`)).status).toBe(204);
+    }
+    const restored = await json("POST", `/reservations/${r.id}/checklist/template`);
+    const after = (await restored.json()) as ChecklistItem[];
+    // 消したテンプレートの 2 件だけが戻り、重複しない
+    expect(after).toHaveLength(before.length);
+    expect(new Set(after.map((i) => i.label)).size).toBe(after.length);
+    expect(after.some((i) => i.id === item.id)).toBe(true);
+  });
+
+  it("ほかのユーザーの予約のチェックリストは触れない", async () => {
+    const r = await createReservation();
+    const [item] = (await detail(r.id)).checklist;
+    const invite = (await (await json("POST", "/invitations", {})).json()) as InvitationCreated;
+    const other = (
+      (await (
+        await json(
+          "POST",
+          `/auth/invitations/${invite.token}`,
+          { loginId: "friend", password: "member-pass-1" },
+          null,
+        )
+      ).json()) as SessionResponse
+    ).token;
+    const path = `/reservations/${r.id}/checklist`;
+    expect((await json("POST", path, { label: "x" }, other)).status).toBe(404);
+    expect((await json("PATCH", `${path}/${item?.id}`, { done: true }, other)).status).toBe(404);
+    expect((await json("DELETE", `${path}/${item?.id}`, undefined, other)).status).toBe(404);
+    expect((await json("POST", `${path}/template`, undefined, other)).status).toBe(404);
+  });
+
+  it("予約を消すとチェックリストも消える", async () => {
+    const r = await createReservation();
+    await json("DELETE", `/reservations/${r.id}`);
+    const n = db.prepare("SELECT COUNT(*) AS n FROM checklist_items").get() as { n: number };
+    expect(Number(n.n)).toBe(0);
   });
 });

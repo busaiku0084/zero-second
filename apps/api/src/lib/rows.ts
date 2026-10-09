@@ -1,5 +1,6 @@
 import type {
   Account,
+  ChecklistItem,
   DeliveryStatus,
   Invitation,
   Notification,
@@ -150,4 +151,9 @@ export function toNotification(r: Row): Notification {
     createdAtMs: num(r.created_at_ms),
     readAtMs: numOrNull(r.read_at_ms),
   };
+}
+
+export function toChecklistItem(r: Row): ChecklistItem {
+  const doneAtMs = numOrNull(r.done_at_ms);
+  return { id: num(r.id), label: str(r.label), done: doneAtMs !== null, doneAtMs };
 }

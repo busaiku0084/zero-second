@@ -1,7 +1,8 @@
-import { findSite, type Reservation } from "@zero-second/shared";
+import { findSite, type ReservationListItem } from "@zero-second/shared";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { EmptyState } from "@/components/EmptyState";
+import { Icon } from "@/components/Icon";
 import { StatusPill } from "@/components/StatusPill";
 import { api } from "@/lib/api";
 import { formatDateTime } from "@/lib/format";
@@ -10,7 +11,7 @@ import { MODE_LABELS } from "@/lib/labels";
 export const metadata: Metadata = { title: "予約" };
 
 export default async function ReservationsPage() {
-  const reservations = await api<Reservation[]>("/reservations");
+  const reservations = await api<ReservationListItem[]>("/reservations");
   const now = Date.now();
   const upcoming = reservations
     .filter((r) => r.status === "pending" && r.saleStartsAtMs >= now)
@@ -64,7 +65,25 @@ export default async function ReservationsPage() {
   );
 }
 
-function ReservationTable({ rows }: { rows: Reservation[] }) {
+/** 購入前チェックリストの進み具合（#13）。すべて済んだら「準備完了」 */
+function Readiness({ r }: { r: ReservationListItem }) {
+  if (r.checklistTotal === 0) return <span className="muted">—</span>;
+  if (r.checklistDone === r.checklistTotal) {
+    return (
+      <span className="pill tone-good">
+        <Icon name="check" />
+        準備完了
+      </span>
+    );
+  }
+  return (
+    <span className="mono muted" style={{ fontSize: "0.85rem" }}>
+      {r.checklistDone} / {r.checklistTotal}
+    </span>
+  );
+}
+
+function ReservationTable({ rows }: { rows: ReservationListItem[] }) {
   return (
     <div className="panel table-wrap" style={{ padding: "16px 8px" }}>
       <table>
@@ -74,6 +93,7 @@ function ReservationTable({ rows }: { rows: Reservation[] }) {
             <th>販売開始</th>
             <th>席種・枚数</th>
             <th>状態</th>
+            <th>準備</th>
           </tr>
         </thead>
         <tbody>
@@ -95,6 +115,9 @@ function ReservationTable({ rows }: { rows: Reservation[] }) {
               </td>
               <td>
                 <StatusPill status={r.status} />
+              </td>
+              <td style={{ whiteSpace: "nowrap" }}>
+                <Readiness r={r} />
               </td>
             </tr>
           ))}

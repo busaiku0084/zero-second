@@ -1,9 +1,10 @@
-import { findSite, type Reservation, type Run } from "@zero-second/shared";
+import { type ChecklistItem, findSite, type Reservation, type Run } from "@zero-second/shared";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { cancelReservation, deleteReservation } from "@/app/actions";
 import { AutoRefresh } from "@/components/AutoRefresh";
+import { Checklist } from "@/components/Checklist";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { Countdown } from "@/components/Countdown";
 import { ManualRunForm } from "@/components/ManualRunForm";
@@ -13,7 +14,7 @@ import { ApiError, api } from "@/lib/api";
 import { formatDateTime, formatElapsed } from "@/lib/format";
 import { MODE_LABELS, PAYMENT_LABELS, reminderLabel } from "@/lib/labels";
 
-type Detail = Reservation & { runs: Run[] };
+type Detail = Reservation & { runs: Run[]; checklist: ChecklistItem[] };
 
 async function load(id: string): Promise<Detail> {
   if (!/^\d+$/.test(id)) notFound();
@@ -158,6 +159,11 @@ export default async function ReservationPage({ params }: PageProps<"/reservatio
                 </>
               ) : null}
             </dl>
+          </section>
+
+          <section className="panel stack" aria-label="購入前チェックリスト">
+            <h3>購入前チェックリスト</h3>
+            <Checklist reservationId={r.id} items={r.checklist} />
           </section>
 
           {r.status === "pending" ? (
