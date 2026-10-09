@@ -4,7 +4,9 @@ import {
   type InvitationCreated,
   invitationCreateSchema,
   loginSchema,
+  type PasswordResetCreated,
   passwordChangeSchema,
+  passwordResetSchema,
   type SessionResponse,
   signupSchema,
 } from "@zero-second/shared";
@@ -80,6 +82,28 @@ export async function acceptInvitation(
   );
 }
 
+export async function resetPassword(
+  token: string,
+  _prev: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const values = formValues(formData);
+  const parsed = passwordResetSchema.safeParse(values);
+  const fieldErrors = parsed.success ? {} : zodErrors(parsed.error);
+  if (values.password !== values.passwordConfirm) {
+    fieldErrors.passwordConfirm = "パスワードが一致しません";
+  }
+  if (!parsed.success || Object.keys(fieldErrors).length > 0) {
+    return { message: "入力内容を確認してください", fieldErrors };
+  }
+  return startSession(
+    `/auth/password-resets/${encodeURIComponent(token)}`,
+    parsed.data,
+    values,
+    "/",
+  );
+}
+
 export async function logout(): Promise<void> {
   try {
     await api("/auth/logout", { method: "POST", onUnauthorized: "throw" });
@@ -136,6 +160,37 @@ export async function createInvitation(_prev: FormState, formData: FormData): Pr
     message: "招待リンクを作りました。リンクはこの画面でしか表示されません",
     link: `${await appOrigin()}/invite/${created.token}`,
   };
+}
+
+// ---------- ユーザー管理（管理者。ADR 0020） ----------
+
+export async function createPasswordResetLink(userId: number): Promise<FormState> {
+  let created: PasswordResetCreated;
+  try {
+    created = await api<PasswordResetCreated>(`/users/${userId}/password-reset`, {
+      method: "POST",
+    });
+  } catch (e) {
+    return failure(e, {});
+  }
+  return {
+    ok: true,
+    message: "再設定リンクを作りました。24 時間有効で、この画面でしか表示されません",
+    link: `${await appOrigin()}/reset/${created.token}`,
+  };
+}
+
+export async function updateUser(
+  userId: number,
+  body: { disabled?: boolean; role?: "admin" | "member" },
+): Promise<FormState> {
+  try {
+    await api(`/users/${userId}`, { method: "PATCH", body });
+  } catch (e) {
+    return failure(e, {});
+  }
+  revalidatePath("/users");
+  return { ok: true };
 }
 
 export async function revokeInvitation(id: number): Promise<FormState> {

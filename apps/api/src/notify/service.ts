@@ -76,7 +76,8 @@ export class NotificationService {
     const rows = this.db
       .prepare(
         `SELECT id, user_id, title, sale_starts_at_ms, reminder_minutes FROM reservations
-         WHERE status IN ('pending', 'preparing') AND user_id IS NOT NULL
+         WHERE status IN ('pending', 'preparing')
+           AND user_id IN (SELECT id FROM users WHERE disabled_at_ms IS NULL)
            AND sale_starts_at_ms > ? AND sale_starts_at_ms <= ?`,
       )
       .all(now, now + MAX_REMINDER_MS) as Row[];

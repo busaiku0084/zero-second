@@ -44,8 +44,11 @@
 | GET | `/auth/me` | 必要 | ログイン中のユーザー |
 | POST | `/auth/logout` | 必要 | 今のセッションを消す → 204 |
 | PUT | `/auth/password` | 必要 | `{ currentPassword, newPassword }` → 204。ほかのセッションは消える |
+| GET | `/auth/password-resets/:token` | 不要 | `{ valid, loginId? }` |
+| POST | `/auth/password-resets/:token` | 不要 | 再設定リンクで新しいパスワードにする。`{ password }` → `{ token, expiresAtMs, user }`。そのユーザーのほかのセッションは消える。無効なリンクは 404 |
 
 - ログイン ID は半角英数字と `_ . -` で 3〜32 文字（大文字・小文字は区別しない）。パスワードは 10 文字以上
+- 停止中のユーザーは、パスワードが正しくてもログインできない（403）
 - セッションの有効期限は 30 日
 
 ### 管理者
@@ -54,7 +57,9 @@
 
 | メソッド | パス | 内容 |
 |---|---|---|
-| GET | `/users` | ユーザーの一覧 |
+| GET | `/users` | ユーザーの一覧（`disabledAtMs` は停止した時刻） |
+| PATCH | `/users/:id` | `{ disabled?, role? }`。停止すると、セッションと未使用の再設定リンクを消す。自分自身は 409 |
+| POST | `/users/:id/password-reset` | パスワードの再設定リンクを発行 → 201 `{ token, expiresAtMs }`。24 時間・1 回限り。停止中は 409 |
 | GET | `/invitations` | 招待の一覧（トークンは含まない） |
 | POST | `/invitations` | 招待を作る。`{ note? }` → 201。`token` はこのときだけ返る。7 日間有効 |
 | DELETE | `/invitations/:id` | 未使用の招待を取り消す → 204 |

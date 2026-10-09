@@ -22,6 +22,10 @@ zero-second にログインするユーザー（[ADR 0016](adr/0016-login-and-pe
 | `login_id` | ログイン ID。大文字・小文字を区別せず一意 |
 | `password_hash` | scrypt のハッシュ（`scrypt$logN$r$p$salt$hash`） |
 | `role` | `admin`（招待・ユーザー一覧を扱える）/ `member` |
+| `disabled_at_ms` | 停止した時刻。停止中はログイン・自動購入・リマインドが止まる（[ADR 0020](adr/0020-user-management.md)） |
+
+### password_resets
+管理者が発行したパスワードの再設定リンク。`token_hash` はトークンの SHA-256。`used_at_ms` が入ったものは使用済み。24 時間で期限切れ。
 
 ### sessions
 ログイン中のセッション。`token_hash` はトークンの SHA-256（トークンそのものは保存しない）。`expires_at_ms` を過ぎたものは無効で、ログインのたびに消す。

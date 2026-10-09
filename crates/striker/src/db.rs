@@ -12,7 +12,7 @@ use crate::metrics::RequestTiming;
 use crate::model::{Reservation, ReservationStatus, RunFinish};
 
 /// ワーカーが前提にするマイグレーション（これ以降が適用済みであること）
-const REQUIRED_MIGRATION: &str = "0003_users.sql";
+const REQUIRED_MIGRATION: &str = "0006_user_management.sql";
 
 /// accounts の 1 行（パスワードは暗号化されたまま）
 pub struct StoredAccount {
@@ -84,7 +84,7 @@ impl Db {
         Ok(n)
     }
 
-    /// 準備を始める時刻を過ぎた、自動購入の待機中の予約
+    /// 準備を始める時刻を過ぎた、自動購入の待機中の予約。停止中のユーザーの予約は動かさない（ADR 0020）
     pub fn due_reservations(&self, now_ms: i64, lead_ms: i64) -> anyhow::Result<Vec<Reservation>> {
         let conn = self.conn()?;
         let mut stmt = conn.prepare(
@@ -92,6 +92,8 @@ impl Db {
                     sale_starts_at_ms
              FROM reservations
              WHERE mode = 'auto' AND status = 'pending' AND sale_starts_at_ms - ? <= ?
+               AND (user_id IS NULL
+                    OR user_id IN (SELECT id FROM users WHERE disabled_at_ms IS NULL))
              ORDER BY sale_starts_at_ms",
         )?;
         let rows = stmt
@@ -379,6 +381,20 @@ mod tests {
         let other_site = insert_account(&db, me, "ticketdive", b"enc");
         set_owner(&db, id, me, Some(other_site));
         assert!(db.account_for(id).is_err());
+    }
+
+    #[test]
+    fn skips_reservations_of_disabled_users() {
+        let db = migrated_db();
+        let user = insert_user(&db, "me");
+        let id = insert_reservation(&db, "mock", "auto", 0);
+        set_owner(&db, id, user, None);
+        assert_eq!(db.due_reservations(0, 0).unwrap().len(), 1);
+        db.conn()
+            .unwrap()
+            .execute("UPDATE users SET disabled_at_ms = 1 WHERE id = ?", [user])
+            .unwrap();
+        assert!(db.due_reservations(0, 0).unwrap().is_empty());
     }
 
     #[test]

@@ -92,7 +92,12 @@ export type User = {
   loginId: string;
   role: UserRole;
   createdAtMs: number;
+  /** 停止した時刻。null なら利用中 */
+  disabledAtMs: number | null;
 };
+
+/** パスワードの再設定リンクを作ったときだけ返す */
+export type PasswordResetCreated = { token: string; expiresAtMs: number };
 
 /** ログイン・セットアップ・招待の受け入れが成功したときのレスポンス */
 export type SessionResponse = {

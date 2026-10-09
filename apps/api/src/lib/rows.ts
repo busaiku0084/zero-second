@@ -123,6 +123,7 @@ export function toUser(r: Row): User {
     loginId: str(r.login_id),
     role: str(r.role) as UserRole,
     createdAtMs: num(r.created_at_ms),
+    disabledAtMs: numOrNull(r.disabled_at_ms),
   };
 }
 

@@ -5,6 +5,7 @@ import { ConfirmButton } from "@/components/ConfirmButton";
 import { EmptyState } from "@/components/EmptyState";
 import { Icon } from "@/components/Icon";
 import { InvitationForm } from "@/components/InvitationForm";
+import { UserActions } from "@/components/UserActions";
 import { api } from "@/lib/api";
 import { formatDateTime } from "@/lib/format";
 import { INVITATION_LABELS, ROLE_LABELS } from "@/lib/labels";
@@ -111,7 +112,9 @@ export default async function UsersPage() {
               <tr>
                 <th>ログイン ID</th>
                 <th>権限</th>
+                <th>状態</th>
                 <th>登録日</th>
+                <th />
               </tr>
             </thead>
             <tbody>
@@ -124,8 +127,24 @@ export default async function UsersPage() {
                   <td>
                     <span className="tag">{ROLE_LABELS[u.role]}</span>
                   </td>
+                  <td style={{ whiteSpace: "nowrap" }}>
+                    {u.disabledAtMs === null ? (
+                      <span className="pill tone-good">
+                        <Icon name="check" />
+                        利用中
+                      </span>
+                    ) : (
+                      <span className="pill tone-neutral">
+                        <Icon name="slash" />
+                        停止中
+                      </span>
+                    )}
+                  </td>
                   <td className="mono" style={{ whiteSpace: "nowrap" }}>
                     {formatDateTime(u.createdAtMs)}
+                  </td>
+                  <td style={{ textAlign: "right" }}>
+                    {u.id === me.id ? null : <UserActions user={u} />}
                   </td>
                 </tr>
               ))}
