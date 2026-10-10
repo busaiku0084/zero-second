@@ -861,6 +861,15 @@ fieldset {
   max-width: none;
 }
 
+.side-open {
+  display: grid;
+  gap: 6px;
+  justify-items: start;
+  padding: 12px;
+  border-radius: var(--radius-sm);
+  background: var(--accent-wash);
+}
+
 .event-preview {
   position: sticky;
   top: 72px;

@@ -4,7 +4,8 @@
     "name": "TicketDive",
     "url": "https://ticketdive.com/",
     "hosts": ["ticketdive.com"],
-    "automation": "manual"
+    "automation": "manual",
+    "embeddable": false
   },
   {
     "id": "livepocket",

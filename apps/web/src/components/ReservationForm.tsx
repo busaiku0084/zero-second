@@ -123,7 +123,9 @@ export function ReservationForm({
     if (id === "saucedemo") setEventUrl(sauceDemoProductUrl(4));
   }
 
-  const showPreview = previewUrl !== null && previewOpen;
+  /** 埋め込みを拒否するサイトは右側に出さず、並べて開くボタンだけにする（#48） */
+  const embeddable = site?.embeddable ?? true;
+  const showPreview = previewUrl !== null && previewOpen && embeddable;
 
   return (
     <div className={showPreview ? "reservation-layout has-preview" : "reservation-layout"}>
@@ -219,7 +221,24 @@ export function ReservationForm({
               required
               aria-invalid={Boolean(e.eventUrl)}
             />
-            {previewUrl ? (
+            {previewUrl && !embeddable ? (
+              <div className="side-open">
+                <button
+                  type="button"
+                  className="button button-primary"
+                  onClick={() => openEventWindow(previewUrl)}
+                >
+                  公演ページを右に並べて開く
+                </button>
+                <p className="field-hint">
+                  {site?.name}{" "}
+                  はほかのサイトへの埋め込みを許可していないため、別ウィンドウで開きます。Chrome
+                  なら、公演ページのタブを右クリックして分割表示にすると、1
+                  つのウィンドウで左右に並べられます
+                </p>
+              </div>
+            ) : null}
+            {previewUrl && embeddable ? (
               <div className="button-row">
                 <button
                   type="button"
@@ -445,7 +464,7 @@ function eventUrlHint(
   lookup: { state: "idle" | "loading" | "done" } | { error: string },
   info: EventInfo | null,
 ): string | undefined {
-  if (!autoFill) return "右側に公演ページが出ます。見ながら公演名・席種・枚数を入れてください";
+  if (!autoFill) return "公演ページを見ながら、公演名・席種・枚数を入れてください";
   if ("error" in lookup) return undefined;
   if (lookup.state === "loading") return "公演情報を読み込んでいます…";
   if (lookup.state === "done" && info) {
