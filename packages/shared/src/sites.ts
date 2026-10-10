@@ -19,6 +19,11 @@ const siteSchema = z.object({
   hosts: z.array(z.string().min(1)).min(1),
   /** manual: 購入補助のみ / auto: striker による自動購入に対応 */
   automation: z.enum(["manual", "auto"]),
+  /**
+   * 公演ページを予約の登録画面に埋め込めるか（ADR 0024）。サイトが X-Frame-Options などで
+   * 拒否していると分かったら false にする。拒否は回避せず、別ウィンドウで開いてもらう
+   */
+  embeddable: z.boolean().default(true),
 });
 
 export type Site = z.infer<typeof siteSchema>;
