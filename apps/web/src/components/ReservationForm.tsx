@@ -19,6 +19,7 @@ import { createReservation, lookupEventInfo } from "@/app/actions";
 import type { FormState } from "@/lib/form";
 import { toJstInput } from "@/lib/format";
 import { reminderLabel } from "@/lib/labels";
+import { EventPagePreview, openEventWindow, previewableUrl } from "./EventPagePreview";
 import { Field, FormMessage } from "./Field";
 import { SubmitButton } from "./SubmitButton";
 
@@ -49,6 +50,9 @@ export function ReservationForm({
   const [lookup, setLookup] = useState<{ state: "idle" | "loading" | "done" } | { error: string }>({
     state: "idle",
   });
+  /** 右側に表示する公演ページ（#46）。打ち終わるのを少し待ってから切り替える */
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [previewOpen, setPreviewOpen] = useState(true);
   const [saleStartsAt, setSaleStartsAt] = useState(v.saleStartsAt ?? defaultSaleStartsAt);
   const scenario = MOCK_SCENARIOS.find((s) => mockEventUrl(s.id) === eventUrl);
   const reminders =
@@ -96,6 +100,16 @@ export function ReservationForm({
     };
   }, [autoFill, siteId, eventUrl]);
 
+  useEffect(() => {
+    const next = previewableUrl(site, eventUrl);
+    if (next === null) {
+      setPreviewUrl(null);
+      return;
+    }
+    const timer = setTimeout(() => setPreviewUrl(next), 400);
+    return () => clearTimeout(timer);
+  }, [site, eventUrl]);
+
   /** サイトを切り替えたら、サイトごとの項目（公演名・URL・席種・枚数・購入のしかた）を初期値に戻す */
   function selectSite(id: string) {
     const next = sites.find((s) => s.id === id);
@@ -109,283 +123,310 @@ export function ReservationForm({
     if (id === "saucedemo") setEventUrl(sauceDemoProductUrl(4));
   }
 
+  const showPreview = previewUrl !== null && previewOpen;
+
   return (
-    <form action={action} className="form panel" noValidate>
-      <FormMessage message={state.message} />
+    <div className={showPreview ? "reservation-layout has-preview" : "reservation-layout"}>
+      <form action={action} className="form panel" noValidate>
+        <FormMessage message={state.message} />
 
-      <fieldset className="field">
-        <legend>サイト</legend>
-        <div className="choice-row">
-          {sites.map((s) => (
-            <label key={s.id} className="choice">
-              <input
-                type="radio"
-                name="site"
-                value={s.id}
-                checked={siteId === s.id}
-                onChange={() => selectSite(s.id)}
-              />
-              <span className="choice-title">{s.name}</span>
-              <span className="choice-sub">
-                {s.automation === "auto" ? "自動購入に対応" : "購入補助のみ"}
-              </span>
-            </label>
-          ))}
-        </div>
-      </fieldset>
-
-      {siteId === "saucedemo" ? (
         <fieldset className="field">
-          <legend>商品（Sauce Demo）</legend>
+          <legend>サイト</legend>
           <div className="choice-row">
-            {SAUCE_DEMO_PRODUCTS.map((p) => (
-              <label key={p.id} className="choice">
+            {sites.map((s) => (
+              <label key={s.id} className="choice">
                 <input
                   type="radio"
-                  name="sauceDemoProduct"
-                  value={p.id}
-                  checked={product?.id === p.id}
-                  onChange={() => setEventUrl(sauceDemoProductUrl(p.id))}
+                  name="site"
+                  value={s.id}
+                  checked={siteId === s.id}
+                  onChange={() => selectSite(s.id)}
                 />
-                <span className="choice-title">{p.name}</span>
+                <span className="choice-title">{s.name}</span>
                 <span className="choice-sub">
-                  id {p.id}（{p.id % 2 === 1 ? "奇数" : "偶数"}）
+                  {s.automation === "auto" ? "自動購入に対応" : "購入補助のみ"}
                 </span>
               </label>
             ))}
           </div>
-          <p className="field-hint">
-            ブラウザを操作して買います。アカウントに Sauce Demo のテストユーザー（パスワードは
-            secret_sauce）を登録して指定してください:{" "}
-            {SAUCE_DEMO_USERS.map((u) => `${u.loginId}（${u.description}）`).join("、")}
-          </p>
         </fieldset>
-      ) : null}
 
-      {siteId === "mock" ? (
-        <fieldset className="field">
-          <legend>シナリオ（モックサイト）</legend>
-          <div className="choice-row">
-            {MOCK_SCENARIOS.map((s) => (
-              <label key={s.id} className="choice">
-                <input
-                  type="radio"
-                  name="mockScenario"
-                  value={s.id}
-                  checked={scenario?.id === s.id}
-                  onChange={() => setEventUrl(mockEventUrl(s.id as MockScenarioId))}
-                />
-                <span className="choice-title">{s.name}</span>
-                <span className="choice-sub">{s.description}</span>
-              </label>
-            ))}
-          </div>
-        </fieldset>
-      ) : null}
+        {siteId === "saucedemo" ? (
+          <fieldset className="field">
+            <legend>商品（Sauce Demo）</legend>
+            <div className="choice-row">
+              {SAUCE_DEMO_PRODUCTS.map((p) => (
+                <label key={p.id} className="choice">
+                  <input
+                    type="radio"
+                    name="sauceDemoProduct"
+                    value={p.id}
+                    checked={product?.id === p.id}
+                    onChange={() => setEventUrl(sauceDemoProductUrl(p.id))}
+                  />
+                  <span className="choice-title">{p.name}</span>
+                  <span className="choice-sub">
+                    id {p.id}（{p.id % 2 === 1 ? "奇数" : "偶数"}）
+                  </span>
+                </label>
+              ))}
+            </div>
+            <p className="field-hint">
+              ブラウザを操作して買います。アカウントに Sauce Demo のテストユーザー（パスワードは
+              secret_sauce）を登録して指定してください:{" "}
+              {SAUCE_DEMO_USERS.map((u) => `${u.loginId}（${u.description}）`).join("、")}
+            </p>
+          </fieldset>
+        ) : null}
 
-      <div className="form-grid">
-        <Field
-          id="eventUrl"
-          label="公演ページの URL"
-          error={e.eventUrl ?? ("error" in lookup ? lookup.error : undefined)}
-          hint={eventUrlHint(autoFill, lookup, info)}
-          wide
-        >
-          <input
+        {siteId === "mock" ? (
+          <fieldset className="field">
+            <legend>シナリオ（モックサイト）</legend>
+            <div className="choice-row">
+              {MOCK_SCENARIOS.map((s) => (
+                <label key={s.id} className="choice">
+                  <input
+                    type="radio"
+                    name="mockScenario"
+                    value={s.id}
+                    checked={scenario?.id === s.id}
+                    onChange={() => setEventUrl(mockEventUrl(s.id as MockScenarioId))}
+                  />
+                  <span className="choice-title">{s.name}</span>
+                  <span className="choice-sub">{s.description}</span>
+                </label>
+              ))}
+            </div>
+          </fieldset>
+        ) : null}
+
+        <div className="form-grid">
+          <Field
             id="eventUrl"
-            name="eventUrl"
-            type="url"
-            inputMode="url"
-            placeholder={site?.url}
-            value={eventUrl}
-            onChange={(ev) => setEventUrl(ev.target.value)}
-            required
-            aria-invalid={Boolean(e.eventUrl)}
-          />
-        </Field>
-        <Field
-          id="title"
-          label="公演名"
-          error={e.title}
-          hint={info ? "公演 URL から自動で入りました" : undefined}
-          wide
-        >
-          <input
-            id="title"
-            name="title"
-            value={title}
-            onChange={(ev) => setTitle(ev.target.value)}
-            readOnly={info !== null}
-            required
-            aria-invalid={Boolean(e.title)}
-          />
-        </Field>
-        <Field
-          id="saleStartsAt"
-          label="販売開始（日本時間）"
-          error={e.saleStartsAtMs}
-          hint="秒まで指定できます"
-        >
-          <div className="input-row">
+            label="公演ページの URL"
+            error={e.eventUrl ?? ("error" in lookup ? lookup.error : undefined)}
+            hint={eventUrlHint(autoFill, lookup, info)}
+            wide
+          >
             <input
-              id="saleStartsAt"
-              name="saleStartsAt"
-              type="datetime-local"
-              step={1}
-              value={saleStartsAt}
-              onChange={(ev) => setSaleStartsAt(ev.target.value)}
+              id="eventUrl"
+              name="eventUrl"
+              type="url"
+              inputMode="url"
+              placeholder={site?.url}
+              value={eventUrl}
+              onChange={(ev) => setEventUrl(ev.target.value)}
               required
-              aria-invalid={Boolean(e.saleStartsAtMs)}
+              aria-invalid={Boolean(e.eventUrl)}
             />
-            {testSite ? (
-              <button
-                type="button"
-                className="button"
-                onClick={() => setSaleStartsAt(toJstInput(Date.now() + 60_000))}
-              >
-                1 分後
-              </button>
+            {previewUrl ? (
+              <div className="button-row">
+                <button
+                  type="button"
+                  className="button button-small"
+                  onClick={() => openEventWindow(previewUrl)}
+                >
+                  別ウィンドウで開く
+                </button>
+                {previewOpen ? null : (
+                  <button
+                    type="button"
+                    className="button button-small preview-toggle"
+                    onClick={() => setPreviewOpen(true)}
+                  >
+                    右側に表示
+                  </button>
+                )}
+              </div>
             ) : null}
-          </div>
-        </Field>
-        <Field
-          id="ticketType"
-          label="席種"
-          error={e.ticketType}
-          hint={info ? undefined : "例: 一般、前方エリア"}
-        >
-          {info ? (
+          </Field>
+          <Field
+            id="title"
+            label="公演名"
+            error={e.title}
+            hint={info ? "公演 URL から自動で入りました" : undefined}
+            wide
+          >
+            <input
+              id="title"
+              name="title"
+              value={title}
+              onChange={(ev) => setTitle(ev.target.value)}
+              readOnly={info !== null}
+              required
+              aria-invalid={Boolean(e.title)}
+            />
+          </Field>
+          <Field
+            id="saleStartsAt"
+            label="販売開始（日本時間）"
+            error={e.saleStartsAtMs}
+            hint="秒まで指定できます"
+          >
+            <div className="input-row">
+              <input
+                id="saleStartsAt"
+                name="saleStartsAt"
+                type="datetime-local"
+                step={1}
+                value={saleStartsAt}
+                onChange={(ev) => setSaleStartsAt(ev.target.value)}
+                required
+                aria-invalid={Boolean(e.saleStartsAtMs)}
+              />
+              {testSite ? (
+                <button
+                  type="button"
+                  className="button"
+                  onClick={() => setSaleStartsAt(toJstInput(Date.now() + 60_000))}
+                >
+                  1 分後
+                </button>
+              ) : null}
+            </div>
+          </Field>
+          <Field
+            id="ticketType"
+            label="席種"
+            error={e.ticketType}
+            hint={info ? undefined : "公演ページに書かれた名前のとおりに（例: 一般、前方エリア）"}
+          >
+            {info ? (
+              <select
+                id="ticketType"
+                name="ticketType"
+                value={ticketType}
+                onChange={(ev) => setTicketType(ev.target.value)}
+              >
+                {info.ticketTypes.map((t) => (
+                  <option key={t} value={t}>
+                    {t}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <input
+                id="ticketType"
+                name="ticketType"
+                value={ticketType}
+                onChange={(ev) => setTicketType(ev.target.value)}
+                required
+                aria-invalid={Boolean(e.ticketType)}
+              />
+            )}
+          </Field>
+          <Field
+            id="quantity"
+            label="枚数"
+            error={e.quantity}
+            hint={info ? `1 回の注文は ${info.maxQuantity} 枚まで` : undefined}
+          >
             <select
-              id="ticketType"
-              name="ticketType"
-              value={ticketType}
-              onChange={(ev) => setTicketType(ev.target.value)}
+              id="quantity"
+              name="quantity"
+              value={quantity}
+              onChange={(ev) => setQuantity(ev.target.value)}
             >
-              {info.ticketTypes.map((t) => (
-                <option key={t} value={t}>
-                  {t}
+              {Array.from({ length: info?.maxQuantity ?? 10 }, (_, i) => i + 1).map((n) => (
+                <option key={n} value={n}>
+                  {n} 枚
                 </option>
               ))}
             </select>
-          ) : (
-            <input
-              id="ticketType"
-              name="ticketType"
-              value={ticketType}
-              onChange={(ev) => setTicketType(ev.target.value)}
-              required
-              aria-invalid={Boolean(e.ticketType)}
-            />
-          )}
-        </Field>
-        <Field
-          id="quantity"
-          label="枚数"
-          error={e.quantity}
-          hint={info ? `1 回の注文は ${info.maxQuantity} 枚まで` : undefined}
-        >
-          <select
-            id="quantity"
-            name="quantity"
-            value={quantity}
-            onChange={(ev) => setQuantity(ev.target.value)}
+          </Field>
+          <Field id="paymentMethod" label="支払い方法">
+            <select id="paymentMethod" name="paymentMethod" defaultValue="convenience_store">
+              <option value="convenience_store">コンビニ払い</option>
+            </select>
+          </Field>
+          <Field
+            id="accountId"
+            label="アカウント"
+            error={e.accountId}
+            hint={
+              siteAccounts.length === 0
+                ? "このサイトのアカウントは未登録です（手動購入なら不要）"
+                : undefined
+            }
           >
-            {Array.from({ length: info?.maxQuantity ?? 10 }, (_, i) => i + 1).map((n) => (
-              <option key={n} value={n}>
-                {n} 枚
-              </option>
-            ))}
-          </select>
-        </Field>
-        <Field id="paymentMethod" label="支払い方法">
-          <select id="paymentMethod" name="paymentMethod" defaultValue="convenience_store">
-            <option value="convenience_store">コンビニ払い</option>
-          </select>
-        </Field>
-        <Field
-          id="accountId"
-          label="アカウント"
-          error={e.accountId}
-          hint={
-            siteAccounts.length === 0
-              ? "このサイトのアカウントは未登録です（手動購入なら不要）"
-              : undefined
-          }
-        >
-          <select id="accountId" name="accountId" defaultValue={v.accountId ?? ""} key={siteId}>
-            <option value="">指定しない</option>
-            {siteAccounts.map((a) => (
-              <option key={a.id} value={a.id}>
-                {a.loginId}
-              </option>
-            ))}
-          </select>
-        </Field>
-      </div>
-
-      <fieldset className="field">
-        <legend>購入のしかた</legend>
-        <div className="choice-row">
-          <label className="choice">
-            <input
-              type="radio"
-              name="mode"
-              value="manual"
-              checked={mode === "manual"}
-              onChange={() => setMode("manual")}
-            />
-            <span className="choice-title">手動で購入</span>
-            <span className="choice-sub">カウントダウンと所要時間の記録で補助します</span>
-          </label>
-          <label className="choice">
-            <input
-              type="radio"
-              name="mode"
-              value="auto"
-              disabled={!autoAllowed}
-              checked={mode === "auto"}
-              onChange={() => setMode("auto")}
-            />
-            <span className="choice-title">自動で購入</span>
-            <span className="choice-sub">
-              {autoAllowed
-                ? "販売開始時刻にワーカーが購入します"
-                : "このサイトは利用規約で自動購入が禁止されています"}
-            </span>
-          </label>
+            <select id="accountId" name="accountId" defaultValue={v.accountId ?? ""} key={siteId}>
+              <option value="">指定しない</option>
+              {siteAccounts.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.loginId}
+                </option>
+              ))}
+            </select>
+          </Field>
         </div>
-        {e.mode ? <p className="field-error">{e.mode}</p> : null}
-      </fieldset>
 
-      <fieldset className="field">
-        <legend>通知</legend>
-        <div className="check-row">
-          {REMINDER_MINUTE_OPTIONS.map((m) => (
-            <label key={m} className="check">
+        <fieldset className="field">
+          <legend>購入のしかた</legend>
+          <div className="choice-row">
+            <label className="choice">
               <input
-                type="checkbox"
-                name="reminderMinutes"
-                value={m}
-                defaultChecked={reminders.includes(m)}
+                type="radio"
+                name="mode"
+                value="manual"
+                checked={mode === "manual"}
+                onChange={() => setMode("manual")}
               />
-              {reminderLabel(m)}
+              <span className="choice-title">手動で購入</span>
+              <span className="choice-sub">カウントダウンと所要時間の記録で補助します</span>
             </label>
-          ))}
+            <label className="choice">
+              <input
+                type="radio"
+                name="mode"
+                value="auto"
+                disabled={!autoAllowed}
+                checked={mode === "auto"}
+                onChange={() => setMode("auto")}
+              />
+              <span className="choice-title">自動で購入</span>
+              <span className="choice-sub">
+                {autoAllowed
+                  ? "販売開始時刻にワーカーが購入します"
+                  : "このサイトは利用規約で自動購入が禁止されています"}
+              </span>
+            </label>
+          </div>
+          {e.mode ? <p className="field-error">{e.mode}</p> : null}
+        </fieldset>
+
+        <fieldset className="field">
+          <legend>通知</legend>
+          <div className="check-row">
+            {REMINDER_MINUTE_OPTIONS.map((m) => (
+              <label key={m} className="check">
+                <input
+                  type="checkbox"
+                  name="reminderMinutes"
+                  value={m}
+                  defaultChecked={reminders.includes(m)}
+                />
+                {reminderLabel(m)}
+              </label>
+            ))}
+          </div>
+          <p className="field-hint">
+            販売開始前に、アプリ内の通知と設定した届け先（ブラウザ・Discord・Slack）で知らせます
+          </p>
+          {e.reminderMinutes ? <p className="field-error">{e.reminderMinutes}</p> : null}
+        </fieldset>
+
+        <Field id="notes" label="メモ" hint="当日の手順や同行者のことなど" wide>
+          <textarea id="notes" name="notes" defaultValue={v.notes} />
+        </Field>
+
+        <div className="button-row">
+          <SubmitButton pendingLabel="登録しています…">予約を登録</SubmitButton>
         </div>
-        <p className="field-hint">
-          販売開始前に、アプリ内の通知と設定した届け先（ブラウザ・Discord・Slack）で知らせます
-        </p>
-        {e.reminderMinutes ? <p className="field-error">{e.reminderMinutes}</p> : null}
-      </fieldset>
-
-      <Field id="notes" label="メモ" hint="当日の手順や同行者のことなど" wide>
-        <textarea id="notes" name="notes" defaultValue={v.notes} />
-      </Field>
-
-      <div className="button-row">
-        <SubmitButton pendingLabel="登録しています…">予約を登録</SubmitButton>
-      </div>
-    </form>
+      </form>
+      {showPreview ? (
+        <EventPagePreview url={previewUrl} onClose={() => setPreviewOpen(false)} />
+      ) : null}
+    </div>
   );
 }
 
@@ -404,7 +445,7 @@ function eventUrlHint(
   lookup: { state: "idle" | "loading" | "done" } | { error: string },
   info: EventInfo | null,
 ): string | undefined {
-  if (!autoFill) return undefined;
+  if (!autoFill) return "右側に公演ページが出ます。見ながら公演名・席種・枚数を入れてください";
   if ("error" in lookup) return undefined;
   if (lookup.state === "loading") return "公演情報を読み込んでいます…";
   if (lookup.state === "done" && info) {

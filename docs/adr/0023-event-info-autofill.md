@@ -33,5 +33,5 @@ TicketDive の購入者利用規約 第10条は BOT などの技術的手段に�
 
 ## 影響
 
-- TicketDive・LivePocket の予約は、今までどおり公演名・席種を手で入れる
+- TicketDive・LivePocket の予約は、今までどおり公演名・席種を手で入れる（右側に公演ページを表示して、見ながら入れられるようにした。[ADR 0024](0024-event-page-side-preview.md)）
 - 新しく `automation: "auto"` のサイトを足すときは、`apps/api/src/lib/event-info.ts` に読み方を足す（docs/development/adding-a-site.md）
