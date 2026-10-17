@@ -11,15 +11,26 @@ export const MOCK_SCENARIOS = [
   { id: "slow", name: "低速", description: "購入の応答に約 0.8 秒かかります" },
   { id: "sold-out", name: "売り切れ", description: "売り切れで購入できません" },
   { id: "captcha", name: "CAPTCHA", description: "人の対応が必要になり、そこで止まります" },
+  {
+    id: "queue",
+    name: "待機列",
+    description: "待機列に入れられ、人の対応が必要になって止まります",
+  },
 ] as const satisfies readonly MockScenario[];
 
 export type MockScenario = { id: string; name: string; description: string };
 
-/** モックサイトの公演の席種（どのシナリオも同じ）。striker は予約の席種をこの名前で探す */
+/**
+ * モックサイトの公演の席種（どのシナリオも同じ）。予約には名前を入れ、striker は名前で探して id を控える。
+ * 注文の API は id で受け付ける（表示名と送る値が違うサイトの見本）
+ */
 export const MOCK_TICKET_TYPES = [
-  { name: "一般", price: 5500 },
-  { name: "前方エリア", price: 8800 },
+  { id: "general", name: "一般", price: 5500 },
+  { id: "front", name: "前方エリア", price: 8800 },
 ] as const;
+
+/** このログイン ID だけはログインに失敗する（ログイン失敗の確認用）。ほかの ID はどれでもログインできる */
+export const MOCK_LOCKED_LOGIN_ID = "locked";
 
 /** モックサイトの 1 回の注文の枚数の上限（購入上限。超えたら striker は人の対応に回す） */
 export const MOCK_MAX_PER_ORDER = 4;
