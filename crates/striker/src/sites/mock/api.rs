@@ -172,7 +172,7 @@ fn login_error(status: StatusCode, code: Option<&str>) -> SiteError {
     }
 }
 
-/// 購入の失敗を SiteError にする。売り切れ・CAPTCHA・購入上限以外は再試行の対象
+/// 購入の失敗を SiteError にする。売り切れ・CAPTCHA・待機列・購入上限以外は再試行の対象
 fn order_error(status: StatusCode, code: Option<&str>) -> SiteError {
     match (status, code) {
         (StatusCode::CONFLICT, Some("sold_out")) => SiteError::SoldOut,
