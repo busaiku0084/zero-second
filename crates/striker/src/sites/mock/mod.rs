@@ -6,9 +6,12 @@
 //!
 //! | 段階 | API | ブラウザ操作 |
 //! |---|---|---|
-//! | login | `POST /api/login` | `/login` の画面で ID・パスワードを入れて送る |
-//! | prepare | `GET /api/events/{id}` で席種と枚数の上限を確かめる | 公演ページを開き、席種と枚数を選んでおく |
-//! | purchase | `POST /api/events/{id}/orders` | 「購入する」を押し、結果の画面を読む |
+//! | login | `POST /api/login`。CSRF トークンを `ctx.prepared` に控える | `/login` の画面で ID・パスワードを入れて送る |
+//! | prepare | `GET /api/events/{id}` で席種と枚数の上限を確かめ、席種の id を `ctx.prepared` に控える | 公演ページを開き、席種と枚数を選んでおく |
+//! | purchase | `POST /api/events/{id}/orders`（控えた値だけで 1 本送る） | 「購入する」を押し、結果の画面を読む |
+//!
+//! 確かめられる失敗: ログイン ID `locked`（ログインの失敗）、シナリオ `flaky`（再試行）・`sold-out`（売り切れ）・
+//! `captcha` / `queue`（人の対応が必要）、枚数の上限超え・ない席種（販売開始前に止める）。
 //!
 //! 送り先は設定の `MOCK_SITE_URL` だけ。予約の公演 URL（`http://127.0.0.1:47302/events/{シナリオ}`）からは
 //! シナリオだけを読み、ホストは使わない。誤って外部のサイトへ送らないよう、`MOCK_SITE_URL` は

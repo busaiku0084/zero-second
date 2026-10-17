@@ -1,6 +1,7 @@
 import { randomInt, randomUUID } from "node:crypto";
 import {
   findMockScenario,
+  MOCK_LOCKED_LOGIN_ID,
   MOCK_MAX_PER_ORDER,
   MOCK_SCENARIOS,
   MOCK_TICKET_TYPES,
@@ -16,8 +17,11 @@ import type { ContentfulStatusCode } from "hono/utils/http-status";
  * 実在のサイトの API や画面を真似たものではない。
  *
  * 同じ購入を 2 つの方法で受け付ける（アダプタの API / ブラウザ操作の骨格を両方確かめるため）:
- * - API: `POST /api/login` → `GET /api/events/:id` → `POST /api/events/:id/orders`（JSON）
+ * - API: `POST /api/login`（CSRF トークンを返す）→ `GET /api/events/:id`（席種の id を返す）
+ *   → `POST /api/events/:id/orders`（JSON。`X-CSRF-Token` ヘッダーと席種の id を送る）
  * - 画面: `/login` → `/events/:id`（席種・枚数を選ぶ）→ 「購入する」→ `/orders/:orderId`
+ *
+ * ログイン ID が `locked` ならログインに失敗する。購入の結果は公演 URL の末尾（シナリオ）で決まる。
  *
  * 画面の要素には `data-test` 属性を付ける（ブラウザ操作のセレクタに使う）。
  */
@@ -38,7 +42,7 @@ const PAYMENT_DUE_MS = 3 * 24 * 60 * 60 * 1000;
 
 type Session = {
   failures: number;
-  /** 画面の購入フォームに埋める CSRF トークン */
+  /** CSRF トークン。画面は購入フォームに埋め、API はログインの応答で返す */
   csrf: string;
   /** ログインに使った ID（画面の表示用。パスワードは受け取っても持たない） */
   loginId: string;
@@ -59,6 +63,7 @@ type OrderError = {
   error:
     | "sold_out"
     | "captcha_required"
+    | "queue_required"
     | "temporarily_unavailable"
     | "invalid_request"
     | "unknown_ticket_type"
@@ -68,10 +73,18 @@ type OrderError = {
 const ORDER_ERROR_MESSAGES: Record<OrderError["error"], string> = {
   sold_out: "売り切れました",
   captcha_required: "画像認証（CAPTCHA）に答えてください",
+  queue_required: "ただいま混み合っているため、待機列に並んでいます",
   temporarily_unavailable: "混み合っています。少し待ってからやり直してください",
   invalid_request: "入力が正しくありません",
   unknown_ticket_type: "その席種はありません",
   over_limit: `1 回の注文は ${MOCK_MAX_PER_ORDER} 枚までです`,
+};
+
+/** 画面で、エラーの種類ごとに付ける data-test の印。ここにないものは "error" */
+const ERROR_MARKERS: Partial<Record<OrderError["error"], string>> = {
+  sold_out: "sold-out",
+  captcha_required: "captcha",
+  queue_required: "queue",
 };
 
 const defaultSleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
@@ -91,6 +104,7 @@ function eventInfo(scenario: MockScenario) {
     title: eventTitle(scenario),
     description: scenario.description,
     tickets: MOCK_TICKET_TYPES.map((t) => ({
+      id: t.id,
       name: t.name,
       price: t.price,
       remaining: scenario.id === "sold-out" ? 0 : 100,
@@ -130,19 +144,18 @@ export function createMockSite({
     return session ? [id, session] : undefined;
   }
 
-  /** 注文する（API と画面で共通）。シナリオごとの振る舞いはここだけで決める */
+  /** 注文する（API と画面で共通）。席種は id で受け取る。シナリオごとの振る舞いはここだけで決める */
   async function placeOrder(
     session: Session,
     scenario: MockScenario,
-    ticketType: unknown,
+    ticketId: unknown,
     quantity: number,
   ): Promise<Order | OrderError> {
-    if (typeof ticketType !== "string" || !Number.isInteger(quantity) || quantity < 1) {
+    if (typeof ticketId !== "string" || !Number.isInteger(quantity) || quantity < 1) {
       return { status: 400, error: "invalid_request" };
     }
-    if (!MOCK_TICKET_TYPES.some((t) => t.name === ticketType)) {
-      return { status: 400, error: "unknown_ticket_type" };
-    }
+    const ticket = MOCK_TICKET_TYPES.find((t) => t.id === ticketId);
+    if (!ticket) return { status: 400, error: "unknown_ticket_type" };
     if (quantity > MOCK_MAX_PER_ORDER) return { status: 400, error: "over_limit" };
 
     switch (scenario.id) {
@@ -150,6 +163,8 @@ export function createMockSite({
         return { status: 409, error: "sold_out" };
       case "captcha":
         return { status: 403, error: "captcha_required" };
+      case "queue":
+        return { status: 503, error: "queue_required" };
       case "flaky":
         if (session.failures < FLAKY_FAILURES) {
           session.failures += 1;
@@ -167,7 +182,7 @@ export function createMockSite({
       paymentReference: paymentReference(),
       paymentDueAtMs: Date.now() + PAYMENT_DUE_MS,
       title: eventTitle(scenario),
-      ticketType,
+      ticketType: ticket.name,
       quantity,
     };
   }
@@ -226,25 +241,29 @@ export function createMockSite({
     ),
   );
 
-  app.get("/login", (c) => {
-    const next = safeNext(c.req.query("next"));
-    return page(
+  const loginPage = (c: Context, next: string, failed = false) =>
+    page(
       c,
       "ログイン",
       html`<h1>ログイン</h1>
-        <p>検証用なので、どの ID・パスワードでもログインできます。</p>
+        <p>検証用なので、<code>${MOCK_LOCKED_LOGIN_ID}</code> 以外のどの ID・パスワードでもログインできます。</p>
+        ${failed ? html`<p class="notice" data-test="login-error">ログイン ID またはパスワードが違います</p>` : ""}
         <form method="post" action="/login" data-test="login-form">
           <input type="hidden" name="next" value="${next}" />
           <label>ログイン ID <input name="loginId" data-test="login-id" autocomplete="username" /></label>
           <label>パスワード <input name="password" type="password" data-test="password" autocomplete="current-password" /></label>
           <button type="submit" data-test="login-button">ログイン</button>
         </form>`,
+      failed ? 401 : 200,
     );
-  });
+
+  app.get("/login", (c) => loginPage(c, safeNext(c.req.query("next"))));
 
   app.post("/login", async (c) => {
     const form = await c.req.parseBody();
-    startSession(c, typeof form.loginId === "string" ? form.loginId.slice(0, 64) : "");
+    const loginId = typeof form.loginId === "string" ? form.loginId.slice(0, 64) : "";
+    if (loginId === MOCK_LOCKED_LOGIN_ID) return loginPage(c, safeNext(form.next), true);
+    startSession(c, loginId);
     return c.redirect(safeNext(form.next), 303);
   });
 
@@ -271,8 +290,8 @@ export function createMockSite({
             ? html`<form method="post" action="/events/${scenario.id}/purchase" data-test="purchase-form">
                 <input type="hidden" name="csrf" value="${session.csrf}" />
                 <label>席種
-                  <select name="ticketType" data-test="ticket-type">
-                    ${event.tickets.map((t) => html`<option value="${t.name}">${t.name}</option>`)}
+                  <select name="ticketId" data-test="ticket-type">
+                    ${event.tickets.map((t) => html`<option value="${t.id}">${t.name}</option>`)}
                   </select>
                 </label>
                 <label>枚数
@@ -303,15 +322,10 @@ export function createMockSite({
       );
     }
 
-    const result = await placeOrder(session, scenario, form.ticketType, Number(form.quantity));
+    const result = await placeOrder(session, scenario, form.ticketId, Number(form.quantity));
     if ("error" in result) {
-      // 売り切れと CAPTCHA は、ブラウザ操作のアダプタが見分けられるよう専用の印を付ける
-      const marker =
-        result.error === "sold_out"
-          ? "sold-out"
-          : result.error === "captcha_required"
-            ? "captcha"
-            : "error";
+      // 売り切れ・CAPTCHA・待機列は、ブラウザ操作のアダプタが見分けられるよう専用の印を付ける
+      const marker = ERROR_MARKERS[result.error] ?? "error";
       return page(
         c,
         "購入できませんでした",
@@ -346,9 +360,13 @@ export function createMockSite({
 
   // ---- API（striker の mock アダプタが API で買うときに使う） ----
 
-  app.post("/api/login", (c) => {
-    startSession(c, "");
-    return c.json({ ok: true });
+  /** ログイン情報は任意。送られたら ID だけ見る（パスワードは持たない） */
+  app.post("/api/login", async (c) => {
+    const body = await c.req.json().catch(() => null);
+    const loginId = typeof body?.loginId === "string" ? body.loginId.slice(0, 64) : "";
+    if (loginId === MOCK_LOCKED_LOGIN_ID) return c.json({ error: "invalid_credentials" }, 401);
+    const session = startSession(c, loginId);
+    return c.json({ csrfToken: session.csrf });
   });
 
   /** 公演情報はログインなしで読める（予約の登録画面の自動入力にも使う） */
@@ -361,10 +379,12 @@ export function createMockSite({
   app.post("/api/events/:id/orders", async (c) => {
     const session = currentSession(c)?.[1];
     if (!session) return c.json({ error: "unauthorized" }, 401);
+    if (c.req.header("x-csrf-token") !== session.csrf)
+      return c.json({ error: "invalid_csrf" }, 403);
     const scenario = findMockScenario(c.req.param("id"));
     if (!scenario) return c.json({ error: "not_found" }, 404);
     const body = await c.req.json().catch(() => null);
-    const result = await placeOrder(session, scenario, body?.ticketType, Number(body?.quantity));
+    const result = await placeOrder(session, scenario, body?.ticketId, Number(body?.quantity));
     if ("error" in result) return c.json({ error: result.error }, result.status);
     return c.json(
       {

@@ -84,7 +84,9 @@ async fn login(&self, ctx: &mut SiteContext) -> Result<(), SiteError> {
     let body = json!({ "loginId": c.login_id, "password": c.password });
     let request = ctx.http.inner().post(self.url("/api/login")).json(&body).build()?;
     let response = ctx.http.execute(request).await?;   // timings に残る
-    expect_success(response, "ログイン").await?;
+    if !response.status().is_success() { return Err(login_error(..)); }
+    let login: LoginResponse = response.json().await?;
+    ctx.prepared.insert("csrf_token", login.csrf_token); // トークンを返すサイトなら控える
     Ok(())
 }
 
@@ -97,7 +99,10 @@ async fn prepare(&self, ctx: &mut SiteContext) -> Result<(), SiteError> {
 }
 
 async fn purchase(&self, ctx: &mut SiteContext, _attempt: u32) -> Result<PurchaseOutcome, SiteError> {
-    let response = /* POST /api/events/{id}/orders（ctx.prepared の値を使う） */;
+    // 控えた値を読むだけ。ここでほかの API を呼んで値を取り直さない
+    let csrf_token = prepared(ctx, "csrf_token")?;
+    let ticket_id = prepared(ctx, "ticket_id")?;
+    let response = /* POST /api/events/{id}/orders（X-CSRF-Token と ticket_id を送る） */;
     if !response.status().is_success() {
         return Err(order_error(response.status(), error_code)); // 純粋関数でテストする
     }
